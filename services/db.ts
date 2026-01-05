@@ -1,35 +1,62 @@
+
 import { createClient } from '@supabase/supabase-js';
 import { Product, Sale, Expense } from '../types';
 
-const supabaseUrl = 'xhogilmkyykccowcjlak';
+// اصلاح آدرس به فرمت کامل مورد نیاز Supabase
+const supabaseUrl = 'https://xhogilmkyykccowcjlak.supabase.co';
 const supabaseKey = 'sb_publishable_mZy125eRnbzOVMjGAfPx3A_w8-46ubw';
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 export const DB = {
-  // مدیریت محصولات
   getProducts: async () => {
-    const { data } = await supabase.from('products').select('*');
-    return data || [];
+    try {
+      const { data, error } = await supabase.from('products').select('*');
+      if (error) throw error;
+      return data || [];
+    } catch (e) {
+      console.error('Error fetching products:', e);
+      return [];
+    }
   },
   saveProducts: async (products: Product[]) => {
-    await supabase.from('products').upsert(products);
+    try {
+      await supabase.from('products').upsert(products);
+    } catch (e) {
+      console.error('Error saving products:', e);
+    }
   },
-
-  // مدیریت فروش
   getSales: async () => {
-    const { data } = await supabase.from('sales').select('*');
-    return data || [];
+    try {
+      const { data, error } = await supabase.from('sales').select('*');
+      if (error) throw error;
+      return data || [];
+    } catch (e) {
+      console.error('Error fetching sales:', e);
+      return [];
+    }
   },
   saveSales: async (sales: Sale[]) => {
-    await supabase.from('sales').upsert(sales);
+    try {
+      await supabase.from('sales').upsert(sales);
+    } catch (e) {
+      console.error('Error saving sales:', e);
+    }
   },
-
-  // مدیریت هزینه‌ها
   getExpenses: async () => {
-    const { data } = await supabase.from('expenses').select('*');
-    return data || [];
+    try {
+      const { data, error } = await supabase.from('expenses').select('*');
+      if (error) throw error;
+      return data || [];
+    } catch (e) {
+      console.error('Error fetching expenses:', e);
+      return [];
+    }
   },
   saveExpenses: async (expenses: Expense[]) => {
-    await supabase.from('expenses').upsert(expenses);
+    try {
+      await supabase.from('expenses').upsert(expenses);
+    } catch (e) {
+      console.error('Error saving expenses:', e);
+    }
   }
 };
