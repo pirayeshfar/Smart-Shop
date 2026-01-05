@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { GoogleGenAI } from '@google/genai';
 import { BrainCircuit, Sparkles, Loader2, BarChart2 } from 'lucide-react';
 import { Product, Sale, Expense } from '../types';
@@ -15,9 +15,17 @@ const AIInsights: React.FC<Props> = ({ products, sales, expenses }) => {
   const [loading, setLoading] = useState<boolean>(false);
 
   const generateInsights = async () => {
+    // در Vercel حتما باید API_KEY را در قسمت Environment Variables تعریف کنید
+    const apiKey = (import.meta as any).env?.VITE_API_KEY || (process as any).env?.API_KEY || '';
+    
+    if (!apiKey) {
+      setInsight('خطا: کلید API یافت نشد. لطفا در تنظیمات Vercel متغیر API_KEY را تعریف کنید.');
+      return;
+    }
+
     setLoading(true);
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+      const ai = new GoogleGenAI({ apiKey });
       
       const dataSummary = `
         Shop Data:
