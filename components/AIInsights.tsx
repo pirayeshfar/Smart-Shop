@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { GoogleGenAI } from '@google/genai';
 import { BrainCircuit, Sparkles, Loader2, BarChart2 } from 'lucide-react';
@@ -15,16 +14,17 @@ const AIInsights: React.FC<Props> = ({ products, sales, expenses }) => {
   const [loading, setLoading] = useState<boolean>(false);
 
   const generateInsights = async () => {
-    // اولویت با متغیرهای محیطی استاندارد Vite است
-    const apiKey = import.meta.env.VITE_API_KEY || process.env.API_KEY;
+    // الزامی: استفاده مستقیم از process.env.API_KEY طبق دستورالعمل‌های سیستم
+    const apiKey = process.env.API_KEY;
     
     if (!apiKey) {
-      setInsight('خطا: کلید API یافت نشد. لطفاً در پنل Vercel متغیر API_KEY را در قسمت Environment Variables اضافه کنید.');
+      setInsight('خطا: کلید API یافت نشد. لطفاً تنظیمات متغیرهای محیطی در پنل مدیریت را بررسی کنید.');
       return;
     }
 
     setLoading(true);
     try {
+      // Ensure GoogleGenAI instance is created right before making an API call to use the most up-to-date API key.
       const ai = new GoogleGenAI({ apiKey });
       
       const dataSummary = `
@@ -33,18 +33,19 @@ const AIInsights: React.FC<Props> = ({ products, sales, expenses }) => {
         - Sales Records: ${sales.length}
         - Total Revenue: ${sales.reduce((a, s) => a + s.totalAmount, 0)}
         - Total Expenses: ${expenses.reduce((a, e) => a + e.amount, 0)}
-        - Top Products: ${Array.from(new Set(sales.map(s => s.productName))).slice(0, 3).join(', ')}
       `;
 
+      // استفاده از مدل gemini-3-flash-preview برای تحلیل‌های متنی
       const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
         contents: `Analyze this shop data and provide 3 actionable business insights in Persian. Data: ${dataSummary}`,
       });
 
+      // استفاده از فیلد .text طبق مستندات جدید (text یک ویژگی است، نه متد)
       setInsight(response.text || 'تحلیلی دریافت نشد.');
     } catch (error) {
-      console.error(error);
-      setInsight('خطا در ارتباط با هوش مصنوعی. لطفاً از صحت کلید API مطمئن شوید.');
+      console.error('Gemini API Error:', error);
+      setInsight('خطا در ارتباط با هوش مصنوعی. لطفاً دوباره تلاش کنید.');
     } finally {
       setLoading(false);
     }
@@ -55,19 +56,21 @@ const AIInsights: React.FC<Props> = ({ products, sales, expenses }) => {
       <div className="bg-gradient-to-br from-indigo-600 to-violet-700 p-8 rounded-3xl text-white shadow-xl relative overflow-hidden">
         <div className="relative z-10">
           <div className="flex items-center gap-3 mb-4">
+            {/* Fix: Property 'brainCircuit' does not exist; changed to 'BrainCircuit' */}
+            <BrainCircuit className="text-indigo-200" size={28} />
             <Sparkles className="text-indigo-200" size={28} />
             <h2 className="text-2xl font-bold">دستیار هوشمند کسب و کار</h2>
           </div>
           <p className="text-indigo-100 mb-6 leading-relaxed max-w-2xl">
-            تحلیل داده‌های فروشگاه با هوش مصنوعی جمینای برای بهینه‌سازی فروش و مدیریت انبار.
+            با استفاده از هوش مصنوعی جمینای، داده‌های فروشگاه خود را تحلیل کرده و راهکارهای عملی برای رشد کسب‌وکار دریافت کنید.
           </p>
           <button 
             onClick={generateInsights}
             disabled={loading}
-            className="flex items-center gap-2 bg-white text-indigo-700 px-8 py-3 rounded-xl font-bold hover:bg-indigo-50 transition-all disabled:opacity-70"
+            className="flex items-center gap-2 bg-white text-indigo-700 px-8 py-3 rounded-xl font-bold hover:bg-indigo-50 transition-all disabled:opacity-70 shadow-lg"
           >
             {loading ? <Loader2 className="animate-spin" /> : <BrainCircuit size={20} />}
-            {loading ? 'در حال تحلیل...' : 'دریافت تحلیل هوشمند'}
+            {loading ? 'در حال تحلیل داده‌ها...' : 'دریافت تحلیل هوشمند'}
           </button>
         </div>
         <div className="absolute left-0 bottom-0 opacity-10 pointer-events-none">

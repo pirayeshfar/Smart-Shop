@@ -1,10 +1,17 @@
-
 import { createClient } from '@supabase/supabase-js';
 import { Product, Sale, Expense } from '../types';
 
-// اصلاح آدرس به فرمت کامل مورد نیاز Supabase
-const supabaseUrl = 'https://xhogilmkyykccowcjlak.supabase.co';
-const supabaseKey = 'sb_publishable_mZy125eRnbzOVMjGAfPx3A_w8-46ubw';
+/**
+ * برای جلوگیری از خطای "Cannot read properties of undefined (reading VITE_SUPABASE_URL)"
+ * از process.env استفاده می‌کنیم که در این محیط به متغیرهای تزریق شده دسترسی مستقیم دارد.
+ */
+const supabaseUrl = process.env.VITE_SUPABASE_URL || '';
+const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY || '';
+
+if (!supabaseUrl || !supabaseKey) {
+  console.warn('Supabase credentials missing. Ensure VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are set in environment variables.');
+}
+
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 export const DB = {
