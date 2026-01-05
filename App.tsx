@@ -1,5 +1,4 @@
-
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   LayoutDashboard, 
   Package, 
@@ -20,25 +19,49 @@ import AIInsights from './components/AIInsights';
 const App: React.FC = () => {
   const [currentView, setCurrentView] = useState<View>(View.DASHBOARD);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  
   const [products, setProducts] = useState<Product[]>([]);
   const [sales, setSales] = useState<Sale[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
+  
+  // متغیرهایی برای ردیابی اینکه آیا داده‌ها برای اولین بار لود شده‌اند یا خیر
+  const [isLoaded, setIsLoaded] = useState(false);
 
-useEffect(() => {
-  const loadData = async () => {
-    const p = await DB.getProducts();
-    const s = await DB.getSales();
-    const e = await DB.getExpenses();
-    setProducts(p);
-    setSales(s);
-    setExpenses(e);
-  };
-  loadData();
-}, []);
+  // لود کردن اولیه داده‌ها
+  useEffect(() => {
+    const loadInitialData = async () => {
+      console.log('در حال لود کردن داده‌ها از Supabase...');
+      const p = await DB.getProducts();
+      const s = await DB.getSales();
+      const e = await DB.getExpenses();
+      
+      setProducts(p);
+      setSales(s);
+      setExpenses(e);
+      setIsLoaded(true); // حالا برنامه آماده ذخیره‌سازی تغییرات جدید است
+      console.log('داده‌ها با موفقیت لود شدند.');
+    };
+    loadInitialData();
+  }, []);
 
-  useEffect(() => { DB.saveProducts(products); }, [products]);
-  useEffect(() => { DB.saveSales(sales); }, [sales]);
-  useEffect(() => { DB.saveExpenses(expenses); }, [expenses]);
+  // ذخیره تغییرات (فقط در صورتی که لود اولیه انجام شده باشد)
+  useEffect(() => {
+    if (isLoaded) {
+      DB.saveProducts(products);
+    }
+  }, [products, isLoaded]);
+
+  useEffect(() => {
+    if (isLoaded) {
+      DB.saveSales(sales);
+    }
+  }, [sales, isLoaded]);
+
+  useEffect(() => {
+    if (isLoaded) {
+      DB.saveExpenses(expenses);
+    }
+  }, [expenses, isLoaded]);
 
   const toggleSidebar = () => setSidebarOpen(!sidebarOpen);
 
@@ -97,8 +120,10 @@ useEffect(() => {
           <div className="p-4 bg-slate-800/50 rounded-2xl border border-slate-700/50">
             <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold mb-2 text-right">وضعیت سیستم</p>
             <div className="flex items-center gap-2 justify-end">
-              <span className="text-xs text-slate-300">دیتابیس متصل است</span>
-              <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
+              <span className="text-xs text-slate-300">
+                {!isLoaded ? 'در حال لود...' : (DB.isConnected() ? 'دیتابیس متصل است' : 'خطا در اتصال')}
+              </span>
+              <div className={`w-2 h-2 rounded-full animate-pulse ${isLoaded && DB.isConnected() ? 'bg-emerald-500' : 'bg-rose-500'}`} />
             </div>
           </div>
         </div>
@@ -128,20 +153,29 @@ useEffect(() => {
 
         <div className="p-6 lg:p-10 w-full">
           <div className="max-w-[1600px] mx-auto">
-            {currentView === View.DASHBOARD && (
-              <Dashboard products={products} sales={sales} expenses={expenses} />
-            )}
-            {currentView === View.PRODUCTS && (
-              <ProductManager products={products} setProducts={setProducts} />
-            )}
-            {currentView === View.SALES && (
-              <SalesManager products={products} setProducts={setProducts} sales={sales} setSales={setSales} />
-            )}
-            {currentView === View.EXPENSES && (
-              <ExpenseManager expenses={expenses} setExpenses={setExpenses} />
-            )}
-            {currentView === View.AI_INSIGHTS && (
-              <AIInsights products={products} sales={sales} expenses={expenses} />
+            {!isLoaded ? (
+              <div className="flex flex-col items-center justify-center py-20 text-slate-400 space-y-4">
+                <div className="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+                <p>در حال همگام‌سازی با دیتابیس...</p>
+              </div>
+            ) : (
+              <>
+                {currentView === View.DASHBOARD && (
+                  <Dashboard products={products} sales={sales} expenses={expenses} />
+                )}
+                {currentView === View.PRODUCTS && (
+                  <ProductManager products={products} setProducts={setProducts} />
+                )}
+                {currentView === View.SALES && (
+                  <SalesManager products={products} setProducts={setProducts} sales={sales} setSales={setSales} />
+                )}
+                {currentView === View.EXPENSES && (
+                  <ExpenseManager expenses={expenses} setExpenses={setExpenses} />
+                )}
+                {currentView === View.AI_INSIGHTS && (
+                  <AIInsights products={products} sales={sales} expenses={expenses} />
+                )}
+              </>
             )}
           </div>
         </div>
