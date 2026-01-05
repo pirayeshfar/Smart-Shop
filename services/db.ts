@@ -1,17 +1,21 @@
 import { createClient } from '@supabase/supabase-js';
 import { Product, Sale, Expense } from '../types';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
-const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+// در Vite متغیرها حتما باید با VITE_ شروع شوند
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 let supabase: any = null;
 
 if (supabaseUrl && supabaseKey) {
   try {
     supabase = createClient(supabaseUrl, supabaseKey);
+    console.log('✅ اتصال اولیه به Supabase برقرار شد.');
   } catch (err) {
-    console.error('Supabase Init Error:', err);
+    console.error('❌ خطا در راه اندازی Supabase:', err);
   }
+} else {
+  console.error('⚠️ متغیرهای محیطی Supabase یافت نشدند! لطفا VITE_SUPABASE_URL و VITE_SUPABASE_ANON_KEY را در تنظیمات Vercel چک کنید.');
 }
 
 export const DB = {
@@ -21,25 +25,22 @@ export const DB = {
     if (!supabase) return [];
     try {
       const { data, error } = await supabase.from('products').select('*');
-      if (error) {
-        console.error('Supabase Fetch Error (Products):', error.message);
-        return [];
-      }
+      if (error) throw error;
       return (data as Product[]) || [];
     } catch (e) {
-      console.error('DB Error:', e);
+      console.error('Error fetching products:', e);
       return [];
     }
   },
 
   saveProducts: async (products: Product[]) => {
-    if (!supabase || products.length === 0) return;
+    if (!supabase) return;
     try {
-      // استفاده از upsert برای ذخیره یا بروزرسانی
-      const { error } = await supabase.from('products').upsert(products, { onConflict: 'id' });
-      if (error) console.error('Supabase Save Error (Products):', error.message);
+      // استفاده از upsert برای جلوگیری از تکرار داده
+      const { error } = await supabase.from('products').upsert(products);
+      if (error) throw error;
     } catch (e) {
-      console.error('DB Save Error:', e);
+      console.error('Error saving products:', e);
     }
   },
 
@@ -47,24 +48,21 @@ export const DB = {
     if (!supabase) return [];
     try {
       const { data, error } = await supabase.from('sales').select('*');
-      if (error) {
-        console.error('Supabase Fetch Error (Sales):', error.message);
-        return [];
-      }
+      if (error) throw error;
       return (data as Sale[]) || [];
     } catch (e) {
-      console.error('DB Error:', e);
+      console.error('Error fetching sales:', e);
       return [];
     }
   },
 
   saveSales: async (sales: Sale[]) => {
-    if (!supabase || sales.length === 0) return;
+    if (!supabase) return;
     try {
-      const { error } = await supabase.from('sales').upsert(sales, { onConflict: 'id' });
-      if (error) console.error('Supabase Save Error (Sales):', error.message);
+      const { error } = await supabase.from('sales').upsert(sales);
+      if (error) throw error;
     } catch (e) {
-      console.error('DB Save Error:', e);
+      console.error('Error saving sales:', e);
     }
   },
 
@@ -72,24 +70,21 @@ export const DB = {
     if (!supabase) return [];
     try {
       const { data, error } = await supabase.from('expenses').select('*');
-      if (error) {
-        console.error('Supabase Fetch Error (Expenses):', error.message);
-        return [];
-      }
+      if (error) throw error;
       return (data as Expense[]) || [];
     } catch (e) {
-      console.error('DB Error:', e);
+      console.error('Error fetching expenses:', e);
       return [];
     }
   },
 
   saveExpenses: async (expenses: Expense[]) => {
-    if (!supabase || expenses.length === 0) return;
+    if (!supabase) return;
     try {
-      const { error } = await supabase.from('expenses').upsert(expenses, { onConflict: 'id' });
-      if (error) console.error('Supabase Save Error (Expenses):', error.message);
+      const { error } = await supabase.from('expenses').upsert(expenses);
+      if (error) throw error;
     } catch (e) {
-      console.error('DB Save Error:', e);
+      console.error('Error saving expenses:', e);
     }
   }
 };
