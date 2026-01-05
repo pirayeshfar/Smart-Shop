@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { GoogleGenAI } from '@google/genai';
 import { BrainCircuit, Sparkles, Loader2, BarChart2 } from 'lucide-react';
@@ -15,10 +14,19 @@ const AIInsights: React.FC<Props> = ({ products, sales, expenses }) => {
   const [loading, setLoading] = useState<boolean>(false);
 
   const generateInsights = async () => {
+    // دریافت ایمن API Key از محیط Vite یا Global
+    const apiKey = (typeof process !== 'undefined' && process.env?.API_KEY) || 
+                   (import.meta.env.VITE_GEMINI_API_KEY) ||
+                   (import.meta.env.VITE_API_KEY);
+    
+    if (!apiKey) {
+      setInsight('خطا: کلید API یافت نشد. لطفاً تنظیمات متغیرهای محیطی را بررسی کنید.');
+      return;
+    }
+
     setLoading(true);
     try {
-      // Ensure GoogleGenAI instance is created right before making an API call using the recommended initialization.
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
+      const ai = new GoogleGenAI({ apiKey });
       
       const dataSummary = `
         Shop Data Summary:
@@ -28,17 +36,14 @@ const AIInsights: React.FC<Props> = ({ products, sales, expenses }) => {
         - Total Expenses: ${expenses.reduce((a, e) => a + e.amount, 0)}
       `;
 
-      // Use gemini-3-flash-preview for general text analysis tasks.
       const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
         contents: `Analyze this shop data and provide 3 actionable business insights in Persian. Data: ${dataSummary}`,
       });
 
-      // Use the .text property to access output content (it is a property, not a method).
       setInsight(response.text || 'تحلیلی دریافت نشد.');
     } catch (error) {
       console.error('Gemini API Error:', error);
-      // Graceful error handling for API failures.
       setInsight('خطا در ارتباط با هوش مصنوعی. لطفاً دوباره تلاش کنید.');
     } finally {
       setLoading(false);
