@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { GoogleGenAI } from '@google/genai';
 import { BrainCircuit, Sparkles, Loader2, BarChart2 } from 'lucide-react';
@@ -14,18 +15,10 @@ const AIInsights: React.FC<Props> = ({ products, sales, expenses }) => {
   const [loading, setLoading] = useState<boolean>(false);
 
   const generateInsights = async () => {
-    // الزامی: استفاده مستقیم از process.env.API_KEY طبق دستورالعمل‌های سیستم
-    const apiKey = process.env.API_KEY;
-    
-    if (!apiKey) {
-      setInsight('خطا: کلید API یافت نشد. لطفاً تنظیمات متغیرهای محیطی در پنل مدیریت را بررسی کنید.');
-      return;
-    }
-
     setLoading(true);
     try {
-      // Ensure GoogleGenAI instance is created right before making an API call to use the most up-to-date API key.
-      const ai = new GoogleGenAI({ apiKey });
+      // Ensure GoogleGenAI instance is created right before making an API call using the recommended initialization.
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
       
       const dataSummary = `
         Shop Data Summary:
@@ -35,16 +28,17 @@ const AIInsights: React.FC<Props> = ({ products, sales, expenses }) => {
         - Total Expenses: ${expenses.reduce((a, e) => a + e.amount, 0)}
       `;
 
-      // استفاده از مدل gemini-3-flash-preview برای تحلیل‌های متنی
+      // Use gemini-3-flash-preview for general text analysis tasks.
       const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
         contents: `Analyze this shop data and provide 3 actionable business insights in Persian. Data: ${dataSummary}`,
       });
 
-      // استفاده از فیلد .text طبق مستندات جدید (text یک ویژگی است، نه متد)
+      // Use the .text property to access output content (it is a property, not a method).
       setInsight(response.text || 'تحلیلی دریافت نشد.');
     } catch (error) {
       console.error('Gemini API Error:', error);
+      // Graceful error handling for API failures.
       setInsight('خطا در ارتباط با هوش مصنوعی. لطفاً دوباره تلاش کنید.');
     } finally {
       setLoading(false);
@@ -56,7 +50,6 @@ const AIInsights: React.FC<Props> = ({ products, sales, expenses }) => {
       <div className="bg-gradient-to-br from-indigo-600 to-violet-700 p-8 rounded-3xl text-white shadow-xl relative overflow-hidden">
         <div className="relative z-10">
           <div className="flex items-center gap-3 mb-4">
-            {/* Fix: Property 'brainCircuit' does not exist; changed to 'BrainCircuit' */}
             <BrainCircuit className="text-indigo-200" size={28} />
             <Sparkles className="text-indigo-200" size={28} />
             <h2 className="text-2xl font-bold">دستیار هوشمند کسب و کار</h2>
