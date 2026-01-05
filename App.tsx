@@ -24,11 +24,17 @@ const App: React.FC = () => {
   const [sales, setSales] = useState<Sale[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
 
-  useEffect(() => {
-    setProducts(DB.getProducts());
-    setSales(DB.getSales());
-    setExpenses(DB.getExpenses());
-  }, []);
+useEffect(() => {
+  const loadData = async () => {
+    const p = await DB.getProducts();
+    const s = await DB.getSales();
+    const e = await DB.getExpenses();
+    setProducts(p);
+    setSales(s);
+    setExpenses(e);
+  };
+  loadData();
+}, []);
 
   useEffect(() => { DB.saveProducts(products); }, [products]);
   useEffect(() => { DB.saveSales(sales); }, [sales]);

@@ -1,32 +1,35 @@
-
+import { createClient } from '@supabase/supabase-js';
 import { Product, Sale, Expense } from '../types';
 
-const KEYS = {
-  PRODUCTS: 'shop_products',
-  SALES: 'shop_sales',
-  EXPENSES: 'shop_expenses'
-};
+const supabaseUrl = 'xhogilmkyykccowcjlak';
+const supabaseKey = 'sb_publishable_mZy125eRnbzOVMjGAfPx3A_w8-46ubw';
+const supabase = createClient(supabaseUrl, supabaseKey);
 
 export const DB = {
-  getProducts: (): Product[] => {
-    const data = localStorage.getItem(KEYS.PRODUCTS);
-    return data ? JSON.parse(data) : [];
+  // مدیریت محصولات
+  getProducts: async () => {
+    const { data } = await supabase.from('products').select('*');
+    return data || [];
   },
-  saveProducts: (products: Product[]) => {
-    localStorage.setItem(KEYS.PRODUCTS, JSON.stringify(products));
+  saveProducts: async (products: Product[]) => {
+    await supabase.from('products').upsert(products);
   },
-  getSales: (): Sale[] => {
-    const data = localStorage.getItem(KEYS.SALES);
-    return data ? JSON.parse(data) : [];
+
+  // مدیریت فروش
+  getSales: async () => {
+    const { data } = await supabase.from('sales').select('*');
+    return data || [];
   },
-  saveSales: (sales: Sale[]) => {
-    localStorage.setItem(KEYS.SALES, JSON.stringify(sales));
+  saveSales: async (sales: Sale[]) => {
+    await supabase.from('sales').upsert(sales);
   },
-  getExpenses: (): Expense[] => {
-    const data = localStorage.getItem(KEYS.EXPENSES);
-    return data ? JSON.parse(data) : [];
+
+  // مدیریت هزینه‌ها
+  getExpenses: async () => {
+    const { data } = await supabase.from('expenses').select('*');
+    return data || [];
   },
-  saveExpenses: (expenses: Expense[]) => {
-    localStorage.setItem(KEYS.EXPENSES, JSON.stringify(expenses));
+  saveExpenses: async (expenses: Expense[]) => {
+    await supabase.from('expenses').upsert(expenses);
   }
 };
