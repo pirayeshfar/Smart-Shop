@@ -1,4 +1,14 @@
 
+export type Role = 'ADMIN' | 'SALESPERSON';
+
+export interface User {
+  id: string;
+  username: string;
+  password: string;
+  role: Role;
+  fullName: string;
+}
+
 export interface Product {
   id: string;
   name: string;
@@ -32,5 +42,6 @@ export enum View {
   PRODUCTS = 'PRODUCTS',
   SALES = 'SALES',
   EXPENSES = 'EXPENSES',
-  AI_INSIGHTS = 'AI_INSIGHTS'
+  AI_INSIGHTS = 'AI_INSIGHTS',
+  USER_MANAGEMENT = 'USER_MANAGEMENT'
 }
