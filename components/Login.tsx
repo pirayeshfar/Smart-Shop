@@ -94,9 +94,14 @@ const Login: React.FC<Props> = ({ onLogin, users }) => {
           </button>
         </form>
 
-        <p className="mt-8 text-center text-slate-400 text-[10px] font-bold uppercase tracking-widest">
-          Smart Shop Management System v2.0
-        </p>
+        <div className="mt-8 text-center space-y-1">
+          <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest">
+            Smart Shop Management System v2.0
+          </p>
+          <p className="text-slate-300 text-[9px] font-medium italic">
+            Designed and Developed by Amirsaman Pirayesh Far
+          </p>
+        </div>
       </div>
     </div>
   );
