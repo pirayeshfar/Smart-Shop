@@ -1,7 +1,7 @@
-
 import React, { useState } from 'react';
 import { Plus, Trash2, ShoppingBag } from 'lucide-react';
 import { Product, Sale } from '../types';
+import { DB } from '../services/db';
 
 interface Props {
   products: Product[];
@@ -40,13 +40,16 @@ const SalesManager: React.FC<Props> = ({ products, setProducts, sales, setSales 
     setSales([newSale, ...sales]);
     setProducts(products.map(p => p.id === product.id ? { ...p, stock: p.stock - quantity } : p));
     
-    // Reset form
     setSelectedProductId('');
     setQuantity(1);
   };
 
-  const handleDeleteSale = (sale: Sale) => {
+  const handleDeleteSale = async (sale: Sale) => {
     if (window.confirm('آیا از ابطال این فاکتور اطمینان دارید؟ موجودی به انبار بازگشت داده می‌شود.')) {
+      // حذف از دیتابیس
+      await DB.deleteSale(sale.id);
+      
+      // بروزرسانی استیت
       setSales(sales.filter(s => s.id !== sale.id));
       setProducts(products.map(p => p.id === sale.productId ? { ...p, stock: p.stock + sale.quantity } : p));
     }
@@ -54,7 +57,6 @@ const SalesManager: React.FC<Props> = ({ products, setProducts, sales, setSales 
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-      {/* Sale Form */}
       <div className="lg:col-span-1">
         <div className="bg-white p-6 rounded-2xl shadow-sm border sticky top-24">
           <div className="flex items-center gap-3 mb-6">
@@ -117,7 +119,6 @@ const SalesManager: React.FC<Props> = ({ products, setProducts, sales, setSales 
         </div>
       </div>
 
-      {/* Sales History */}
       <div className="lg:col-span-2">
         <div className="bg-white rounded-2xl shadow-sm border overflow-hidden">
           <div className="p-6 border-b">

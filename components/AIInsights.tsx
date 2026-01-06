@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { GoogleGenAI } from '@google/genai';
 import { BrainCircuit, Sparkles, Loader2, BarChart2 } from 'lucide-react';
@@ -14,19 +15,11 @@ const AIInsights: React.FC<Props> = ({ products, sales, expenses }) => {
   const [loading, setLoading] = useState<boolean>(false);
 
   const generateInsights = async () => {
-    // دریافت ایمن API Key از محیط Vite یا Global
-    const apiKey = (typeof process !== 'undefined' && process.env?.API_KEY) || 
-                   (import.meta.env.VITE_GEMINI_API_KEY) ||
-                   (import.meta.env.VITE_API_KEY);
-    
-    if (!apiKey) {
-      setInsight('خطا: کلید API یافت نشد. لطفاً تنظیمات متغیرهای محیطی را بررسی کنید.');
-      return;
-    }
-
     setLoading(true);
     try {
-      const ai = new GoogleGenAI({ apiKey });
+      // Always initialize GoogleGenAI with process.env.API_KEY directly as per guidelines.
+      // This also resolves the 'Property env does not exist on type ImportMeta' error.
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
       
       const dataSummary = `
         Shop Data Summary:
@@ -41,6 +34,7 @@ const AIInsights: React.FC<Props> = ({ products, sales, expenses }) => {
         contents: `Analyze this shop data and provide 3 actionable business insights in Persian. Data: ${dataSummary}`,
       });
 
+      // Extract generated text using the .text property (not a method) from the response.
       setInsight(response.text || 'تحلیلی دریافت نشد.');
     } catch (error) {
       console.error('Gemini API Error:', error);

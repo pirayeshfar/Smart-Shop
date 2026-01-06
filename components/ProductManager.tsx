@@ -1,7 +1,7 @@
-
 import React, { useState } from 'react';
 import { Plus, Edit2, Trash2, Search, X } from 'lucide-react';
 import { Product } from '../types';
+import { DB } from '../services/db';
 
 interface Props {
   products: Product[];
@@ -14,13 +14,7 @@ const ProductManager: React.FC<Props> = ({ products, setProducts }) => {
   const [searchTerm, setSearchTerm] = useState('');
 
   const [formData, setFormData] = useState<Partial<Product>>({
-    name: '',
-    size: '',
-    color: '',
-    buyPrice: 0,
-    sellPrice: 0,
-    stock: 0,
-    reorderPoint: 5
+    name: '', size: '', color: '', buyPrice: 0, sellPrice: 0, stock: 0, reorderPoint: 5
   });
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -45,8 +39,11 @@ const ProductManager: React.FC<Props> = ({ products, setProducts }) => {
     setIsModalOpen(true);
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (window.confirm('آیا از حذف این محصول اطمینان دارید؟')) {
+      // ابتدا حذف از دیتابیس
+      await DB.deleteProduct(id);
+      // سپس بروزرسانی استیت محلی
       setProducts(products.filter(p => p.id !== id));
     }
   };

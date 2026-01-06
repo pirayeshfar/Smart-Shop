@@ -1,7 +1,7 @@
-
 import React, { useState } from 'react';
 import { Plus, Trash2, Wallet } from 'lucide-react';
 import { Expense } from '../types';
+import { DB } from '../services/db';
 
 interface Props {
   expenses: Expense[];
@@ -25,8 +25,11 @@ const ExpenseManager: React.FC<Props> = ({ expenses, setExpenses }) => {
     setAmount(0);
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (window.confirm('آیا از حذف این هزینه اطمینان دارید؟')) {
+      // حذف از دیتابیس
+      await DB.deleteExpense(id);
+      // بروزرسانی استیت
       setExpenses(expenses.filter(e => e.id !== id));
     }
   };
