@@ -1,4 +1,3 @@
-
 import React, { useMemo } from 'react';
 import { TrendingUp, TrendingDown, Package, DollarSign, AlertCircle, ShoppingCart } from 'lucide-react';
 import { Product, Sale, Expense } from '../types';
@@ -70,11 +69,11 @@ const Dashboard: React.FC<Props> = ({ products, sales, expenses }) => {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Sales Chart */}
-        <div className="lg:col-span-2 bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
+        <div className="lg:col-span-2 bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100">
           <div className="flex items-center justify-between mb-8">
-            <h3 className="text-lg font-bold text-slate-800">تحلیل روند فروش</h3>
+            <h3 className="text-lg font-black text-slate-800">تحلیل روند فروش</h3>
             <div className="flex gap-2">
-              <span className="flex items-center gap-1 text-xs font-medium text-emerald-600 bg-emerald-50 px-2 py-1 rounded-lg">
+              <span className="flex items-center gap-1 text-xs font-bold text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-full">
                 <TrendingUp size={12} />
                 رشد مثبت
               </span>
@@ -96,10 +95,12 @@ const Dashboard: React.FC<Props> = ({ products, sales, expenses }) => {
                   contentStyle={{ 
                     textAlign: 'right', 
                     direction: 'rtl', 
-                    borderRadius: '16px', 
+                    borderRadius: '24px', 
                     border: 'none', 
-                    boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' 
+                    boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)',
+                    padding: '16px'
                   }}
+                  itemStyle={{ fontWeight: '900', color: '#4f46e5' }}
                   formatter={(value: any) => [formatPrice(value), 'مبلغ']}
                 />
                 <Area 
@@ -108,7 +109,7 @@ const Dashboard: React.FC<Props> = ({ products, sales, expenses }) => {
                   stroke="#6366f1" 
                   fillOpacity={1} 
                   fill="url(#colorSales)" 
-                  strokeWidth={3}
+                  strokeWidth={4}
                 />
               </AreaChart>
             </ResponsiveContainer>
@@ -116,26 +117,29 @@ const Dashboard: React.FC<Props> = ({ products, sales, expenses }) => {
         </div>
 
         {/* Low Stock Alerts */}
-        <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
-          <h3 className="text-lg font-bold text-slate-800 mb-6 flex items-center gap-2">
+        <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100">
+          <h3 className="text-lg font-black text-slate-800 mb-6 flex items-center gap-2">
             <Package size={20} className="text-indigo-600" />
-            هشدار موجودی
+            هشدار موجودی انبار
           </h3>
-          <div className="space-y-3 max-h-[300px] overflow-y-auto custom-scrollbar">
+          <div className="space-y-4 max-h-[350px] overflow-y-auto custom-scrollbar pr-1">
             {lowStockItems.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-12 text-slate-400">
-                <Package size={48} className="mb-2 opacity-20" />
-                <p className="text-sm">انبار کاملاً شارژ است</p>
+              <div className="flex flex-col items-center justify-center py-16 text-slate-300">
+                <Package size={64} className="mb-4 opacity-10" />
+                <p className="text-sm font-black">انبار کاملاً شارژ است</p>
               </div>
             ) : (
               lowStockItems.map(item => (
-                <div key={item.id} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100 hover:border-indigo-200 transition-colors">
+                <div key={item.id} className="group flex items-center justify-between p-5 bg-slate-50 rounded-2xl border border-slate-100 hover:border-indigo-300 transition-all hover:bg-white hover:shadow-lg hover:shadow-indigo-500/5">
                   <div>
-                    <p className="text-sm font-bold text-slate-800">{item.name}</p>
-                    <p className="text-xs text-slate-500 mt-0.5">سایز: {item.size} | رنگ: {item.color}</p>
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-[10px] font-mono text-slate-400 font-bold bg-white px-1.5 py-0.5 rounded border border-slate-100 group-hover:border-indigo-100">{item.code}</span>
+                      <p className="text-sm font-black text-slate-800">{item.name}</p>
+                    </div>
+                    <p className="text-[11px] text-slate-500 font-bold">سایز: {item.size} | رنگ: {item.color}</p>
                   </div>
                   <div className="text-left">
-                    <span className="text-xs font-bold text-rose-600 bg-rose-50 px-2 py-1 rounded-lg">
+                    <span className="text-xs font-black text-rose-600 bg-rose-50 px-3 py-1.5 rounded-xl border border-rose-100">
                       {item.stock} عدد
                     </span>
                   </div>
@@ -159,19 +163,19 @@ interface StatCardProps {
 }
 
 const StatCard: React.FC<StatCardProps> = ({ title, value, icon, bgColor, highlight, trend }) => (
-  <div className={`p-6 rounded-3xl shadow-sm border border-slate-100 bg-white transition-all hover:shadow-md ${highlight ? 'ring-2 ring-amber-400' : ''}`}>
-    <div className="flex items-center justify-between mb-4">
-      <div className={`p-3 rounded-2xl ${bgColor}`}>
+  <div className={`p-7 rounded-[2.5rem] shadow-sm border border-slate-100 bg-white transition-all hover:shadow-xl hover:translate-y-[-4px] ${highlight ? 'ring-2 ring-amber-400' : ''}`}>
+    <div className="flex items-center justify-between mb-5">
+      <div className={`p-4 rounded-2xl ${bgColor}`}>
         {icon}
       </div>
       {trend && (
-        <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full">
+        <span className="text-[10px] font-black text-emerald-600 bg-emerald-50 px-2.5 py-1.5 rounded-full">
           {trend}
         </span>
       )}
     </div>
-    <h4 className="text-slate-500 text-xs font-medium mb-1">{title}</h4>
-    <p className="text-xl font-black text-slate-900 leading-tight truncate">{value}</p>
+    <h4 className="text-slate-500 text-xs font-bold mb-2 uppercase tracking-widest">{title}</h4>
+    <p className="text-2xl font-black text-slate-900 leading-tight truncate">{value}</p>
   </div>
 );
 

@@ -11,6 +11,7 @@ export interface User {
 
 export interface Product {
   id: string;
+  code: string;
   name: string;
   size: string;
   color: string;

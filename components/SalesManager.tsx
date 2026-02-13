@@ -46,10 +46,7 @@ const SalesManager: React.FC<Props> = ({ products, setProducts, sales, setSales 
 
   const handleDeleteSale = async (sale: Sale) => {
     if (window.confirm('آیا از ابطال این فاکتور اطمینان دارید؟ موجودی به انبار بازگشت داده می‌شود.')) {
-      // حذف از دیتابیس
       await DB.deleteSale(sale.id);
-      
-      // بروزرسانی استیت
       setSales(sales.filter(s => s.id !== sale.id));
       setProducts(products.map(p => p.id === sale.productId ? { ...p, stock: p.stock + sale.quantity } : p));
     }
@@ -58,71 +55,77 @@ const SalesManager: React.FC<Props> = ({ products, setProducts, sales, setSales 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
       <div className="lg:col-span-1">
-        <div className="bg-white p-6 rounded-2xl shadow-sm border sticky top-24">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg">
-              <ShoppingBag size={20} />
+        <div className="bg-white p-7 rounded-[2.5rem] shadow-sm border sticky top-24">
+          <div className="flex items-center gap-3 mb-8">
+            <div className="p-3 bg-indigo-50 text-indigo-600 rounded-2xl">
+              <ShoppingBag size={24} />
             </div>
-            <h2 className="text-xl font-bold text-slate-800">ثبت فروش جدید</h2>
+            <h2 className="text-xl font-black text-slate-800">ثبت فاکتور جدید</h2>
           </div>
-          <form onSubmit={handleSale} className="space-y-4">
+          <form onSubmit={handleSale} className="space-y-6">
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">انتخاب کالا</label>
+              <label className="block text-xs font-bold text-slate-500 mb-2 mr-1 uppercase tracking-widest">انتخاب محصول</label>
               <select 
                 required
-                className="w-full px-4 py-2 border rounded-xl outline-none bg-white"
+                className="w-full px-4 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 transition-all font-bold"
                 value={selectedProductId}
                 onChange={e => setSelectedProductId(e.target.value)}
               >
-                <option value="">یک محصول انتخاب کنید...</option>
+                <option value="">جستجو و انتخاب...</option>
                 {products.map(p => (
                   <option key={p.id} value={p.id} disabled={p.stock <= 0}>
-                    {p.name} ({p.color}) - موجودی: {p.stock}
+                    [{p.code}] {p.name} ({p.color}) - {p.stock} موجود
                   </option>
                 ))}
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">تعداد</label>
+              <label className="block text-xs font-bold text-slate-500 mb-2 mr-1 uppercase tracking-widest">تعداد فروش</label>
               <input 
                 required
                 type="number" 
                 min="1"
-                className="w-full px-4 py-2 border rounded-xl outline-none"
+                className="w-full px-4 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 transition-all font-black"
                 value={quantity}
                 onChange={e => setQuantity(Number(e.target.value))}
               />
             </div>
 
             {selectedProductId && (
-              <div className="p-4 bg-slate-50 rounded-xl space-y-2 border border-slate-100">
+              <div className="p-5 bg-indigo-50/50 rounded-2xl space-y-3 border border-indigo-100">
                 <div className="flex justify-between text-sm">
-                  <span className="text-slate-500">قیمت واحد:</span>
-                  <span className="font-bold">{new Intl.NumberFormat('fa-IR').format(products.find(p => p.id === selectedProductId)?.sellPrice || 0)}</span>
+                  <span className="text-slate-500 font-bold">قیمت واحد:</span>
+                  <span className="font-black text-slate-700">{new Intl.NumberFormat('fa-IR').format(products.find(p => p.id === selectedProductId)?.sellPrice || 0)}</span>
                 </div>
-                <div className="flex justify-between text-base border-t pt-2 mt-2">
-                  <span className="font-bold text-slate-800">مبلغ کل:</span>
-                  <span className="font-bold text-indigo-600">
-                    {new Intl.NumberFormat('fa-IR').format((products.find(p => p.id === selectedProductId)?.sellPrice || 0) * quantity)} ریال
-                  </span>
+                <div className="flex justify-between items-center border-t border-indigo-100 pt-3 mt-3">
+                  <span className="font-black text-slate-800">مجموع فاکتور:</span>
+                  <div className="flex flex-col items-end">
+                    <span className="font-black text-xl text-indigo-600">
+                      {new Intl.NumberFormat('fa-IR').format((products.find(p => p.id === selectedProductId)?.sellPrice || 0) * quantity)}
+                    </span>
+                    <span className="text-[10px] font-bold text-indigo-400">ریال</span>
+                  </div>
                 </div>
               </div>
             )}
 
             <button 
               type="submit" 
-              className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold hover:bg-indigo-700 transition-colors"
+              className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-black hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-600/20 active:scale-[0.98]"
             >
-              ثبت فاکتور
+              تایید و چاپ فاکتور
             </button>
           </form>
         </div>
       </div>
 
       <div className="lg:col-span-2">
-        <div className="bg-white rounded-2xl shadow-sm border overflow-hidden">
-          <div className="p-6 border-b">
-            <h2 className="text-xl font-bold text-slate-800">تاریخچه فروش</h2>
+        <div className="bg-white rounded-[2.5rem] shadow-sm border overflow-hidden">
+          <div className="p-7 border-b flex items-center justify-between">
+            <h2 className="text-xl font-black text-slate-800">گزارش فروش اخیر</h2>
+            <div className="text-xs font-bold text-slate-400 bg-slate-50 px-3 py-1.5 rounded-full">
+              {sales.length} تراکنش ثبت شده
+            </div>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-right">
@@ -131,30 +134,32 @@ const SalesManager: React.FC<Props> = ({ products, setProducts, sales, setSales 
                   <th className="px-6 py-4">تاریخ</th>
                   <th className="px-6 py-4">محصول</th>
                   <th className="px-6 py-4">تعداد</th>
-                  <th className="px-6 py-4">مبلغ کل</th>
-                  <th className="px-6 py-4">سود</th>
-                  <th className="px-6 py-4">عملیات</th>
+                  <th className="px-6 py-4">مبلغ نهایی</th>
+                  <th className="px-6 py-4">سود خالص</th>
+                  <th className="px-6 py-4 text-center">عملیات</th>
                 </tr>
               </thead>
               <tbody className="divide-y text-sm">
                 {sales.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-6 py-12 text-center text-slate-400">هنوز هیچ فروشی ثبت نشده است.</td>
+                    <td colSpan={6} className="px-6 py-20 text-center text-slate-300 font-bold">هیچ تراکنشی در تاریخچه یافت نشد.</td>
                   </tr>
                 ) : (
                   sales.map(sale => (
-                    <tr key={sale.id} className="hover:bg-slate-50">
-                      <td className="px-6 py-4 text-slate-500">
+                    <tr key={sale.id} className="hover:bg-slate-50 transition-colors">
+                      <td className="px-6 py-4 text-slate-500 font-medium">
                         {new Date(sale.date).toLocaleDateString('fa-IR')}
                       </td>
-                      <td className="px-6 py-4 font-bold text-slate-800">{sale.productName}</td>
-                      <td className="px-6 py-4">{sale.quantity} عدد</td>
-                      <td className="px-6 py-4 font-bold">{new Intl.NumberFormat('fa-IR').format(sale.totalAmount)}</td>
-                      <td className="px-6 py-4 text-emerald-600">{new Intl.NumberFormat('fa-IR').format(sale.profit)}</td>
+                      <td className="px-6 py-4 font-black text-slate-800">{sale.productName}</td>
+                      <td className="px-6 py-4 font-bold">{sale.quantity} عدد</td>
+                      <td className="px-6 py-4 font-black text-slate-900">{new Intl.NumberFormat('fa-IR').format(sale.totalAmount)}</td>
+                      <td className="px-6 py-4 text-emerald-600 font-black">{new Intl.NumberFormat('fa-IR').format(sale.profit)}</td>
                       <td className="px-6 py-4">
-                        <button onClick={() => handleDeleteSale(sale)} className="p-2 text-rose-600 hover:bg-rose-50 rounded-lg">
-                          <Trash2 size={16} />
-                        </button>
+                        <div className="flex justify-center">
+                          <button onClick={() => handleDeleteSale(sale)} className="p-2 text-rose-500 hover:bg-rose-50 rounded-xl transition-colors" title="ابطال فاکتور">
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))
