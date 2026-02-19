@@ -19,17 +19,13 @@ export const DB = {
   getUsers: async (): Promise<User[]> => {
     if (!supabase) return [];
     const { data, error } = await supabase.from('users').select('*');
-    if (error) { console.error('Error users:', error.message); return []; }
+    if (error) return [];
     return data || [];
   },
 
   saveUser: async (user: User) => {
     if (!supabase) return;
-    const { error } = await supabase.from('users').upsert(user);
-    if (error) {
-       console.error('❌ خطا در ذخیره کاربر:', error.message, error.details);
-       alert(`خطا در دیتابیس: ${error.message}`);
-    }
+    await supabase.from('users').upsert(user);
   },
 
   deleteUser: async (id: string) => {
@@ -40,40 +36,58 @@ export const DB = {
   getProducts: async () => {
     if (!supabase) return [];
     const { data, error } = await supabase.from('products').select('*').order('name', { ascending: true });
-    if (error) { console.error('Error products:', error.message); return []; }
+    if (error) return [];
     return data || [];
   },
 
   upsertProduct: async (product: Product) => {
     if (!supabase) return;
-    const { error } = await supabase.from('products').upsert(product);
+    // استفاده از نام‌های دقیق ستون‌ها برای جلوگیری از خطای Schema Cache
+    const { error } = await supabase.from('products').upsert({
+      id: product.id,
+      code: product.code,
+      name: product.name,
+      size: product.size,
+      color: product.color,
+      buyPrice: product.buyPrice,
+      sellPrice: product.sellPrice,
+      stock: product.stock,
+      reorderPoint: product.reorderPoint
+    });
+    
     if (error) {
-      console.error('❌ جزئیات خطای دیتابیس (محصول):', error.message, error.details);
-      alert(`خطای ذخیره‌سازی: ${error.message}\nاگر خطای RLS است، کد SQL جدید را اجرا کنید.`);
+      console.error('Database Error:', error.message);
       throw error;
     }
   },
 
   deleteProduct: async (id: string) => {
     if (!supabase) return;
-    const { error } = await supabase.from('products').delete().eq('id', id);
-    if (error) console.error('Delete error:', error.message);
+    await supabase.from('products').delete().eq('id', id);
   },
 
   getSales: async () => {
     if (!supabase) return [];
     const { data, error } = await supabase.from('sales').select('*').order('date', { ascending: false });
-    if (error) { console.error('Error sales:', error.message); return []; }
+    if (error) return [];
     return data || [];
   },
 
   addSale: async (sale: Sale) => {
     if (!supabase) return;
-    const { error } = await supabase.from('sales').insert(sale);
-    if (error) {
-      console.error('❌ خطا در ثبت فروش:', error.message);
-      throw error;
-    }
+    const { error } = await supabase.from('sales').insert({
+      id: sale.id,
+      date: sale.date,
+      productId: sale.productId,
+      productName: sale.productName,
+      quantity: sale.quantity,
+      subtotal: sale.subtotal,
+      discountAmount: sale.discountAmount,
+      taxAmount: sale.taxAmount,
+      totalAmount: sale.totalAmount,
+      profit: sale.profit
+    });
+    if (error) throw error;
   },
 
   deleteSale: async (id: string) => {
@@ -84,17 +98,14 @@ export const DB = {
   getExpenses: async () => {
     if (!supabase) return [];
     const { data, error } = await supabase.from('expenses').select('*').order('date', { ascending: false });
-    if (error) { console.error('Error expenses:', error.message); return []; }
+    if (error) return [];
     return data || [];
   },
 
   addExpense: async (expense: Expense) => {
     if (!supabase) return;
     const { error } = await supabase.from('expenses').insert(expense);
-    if (error) {
-       console.error('❌ خطا در ثبت هزینه:', error.message);
-       throw error;
-    }
+    if (error) throw error;
   },
 
   deleteExpense: async (id: string) => {
