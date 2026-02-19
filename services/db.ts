@@ -26,7 +26,7 @@ export const DB = {
   saveUser: async (user: User) => {
     if (!supabase) return;
     const { error } = await supabase.from('users').upsert(user);
-    if (error) console.error('❌ خطا در ذخیره کاربر. مطمئن شوید RLS غیرفعال است:', error);
+    if (error) console.error('❌ خطا در ذخیره کاربر. مطمئن شوید RLS برای جدول users تنظیم شده است:', error);
   },
   deleteUser: async (id: string) => {
     if (!supabase) return;
@@ -36,7 +36,7 @@ export const DB = {
   // Products
   getProducts: async () => {
     if (!supabase) return [];
-    const { data, error } = await supabase.from('products').select('*');
+    const { data, error } = await supabase.from('products').select('*').order('name', { ascending: true });
     if (error) { console.error('Error fetching products:', error); return []; }
     return (data as Product[]) || [];
   },
@@ -57,7 +57,7 @@ export const DB = {
   // Sales
   getSales: async () => {
     if (!supabase) return [];
-    const { data, error } = await supabase.from('sales').select('*');
+    const { data, error } = await supabase.from('sales').select('*').order('date', { ascending: false });
     if (error) { console.error('Error fetching sales:', error); return []; }
     return (data as Sale[]) || [];
   },
@@ -74,7 +74,7 @@ export const DB = {
   // Expenses
   getExpenses: async () => {
     if (!supabase) return [];
-    const { data, error } = await supabase.from('expenses').select('*');
+    const { data, error } = await supabase.from('expenses').select('*').order('date', { ascending: false });
     if (error) { console.error('Error fetching expenses:', error); return []; }
     return (data as Expense[]) || [];
   },
