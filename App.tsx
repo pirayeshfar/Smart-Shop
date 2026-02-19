@@ -7,7 +7,6 @@ import {
   Wallet, 
   BrainCircuit, 
   Menu, 
-  AlertTriangle,
   RefreshCw,
   Settings,
   LogOut,
@@ -37,38 +36,35 @@ const App: React.FC = () => {
   const [isLoaded, setIsLoaded] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<'connected' | 'error' | 'checking'>('checking');
 
-  useEffect(() => {
-    const loadInitialData = async () => {
-      setConnectionStatus('checking');
-      if (DB.isConnected()) {
-        try {
-          const [p, s, e, u] = await Promise.all([
-            DB.getProducts(),
-            DB.getSales(),
-            DB.getExpenses(),
-            DB.getUsers()
-          ]);
-          setProducts(p);
-          setSales(s);
-          setExpenses(e);
-          setUsers(u);
-          setConnectionStatus('connected');
-        } catch (err) {
-          console.error('Load Error:', err);
-          setConnectionStatus('error');
-        }
-      } else {
+  const loadInitialData = async () => {
+    setIsLoaded(false);
+    setConnectionStatus('checking');
+    if (DB.isConnected()) {
+      try {
+        const [p, s, e, u] = await Promise.all([
+          DB.getProducts(),
+          DB.getSales(),
+          DB.getExpenses(),
+          DB.getUsers()
+        ]);
+        setProducts(p);
+        setSales(s);
+        setExpenses(e);
+        setUsers(u);
+        setConnectionStatus('connected');
+      } catch (err) {
+        console.error('Load Error:', err);
         setConnectionStatus('error');
       }
-      setIsLoaded(true);
-    };
+    } else {
+      setConnectionStatus('error');
+    }
+    setIsLoaded(true);
+  };
+
+  useEffect(() => {
     loadInitialData();
   }, []);
-
-  // ذخیره‌سازی‌های خودکار
-  useEffect(() => { if (isLoaded && DB.isConnected()) DB.saveProducts(products); }, [products, isLoaded]);
-  useEffect(() => { if (isLoaded && DB.isConnected()) DB.saveSales(sales); }, [sales, isLoaded]);
-  useEffect(() => { if (isLoaded && DB.isConnected()) DB.saveExpenses(expenses); }, [expenses, isLoaded]);
 
   const toggleSidebar = () => setSidebarOpen(prev => !prev);
 
@@ -77,7 +73,6 @@ const App: React.FC = () => {
     setCurrentView(View.DASHBOARD);
   };
 
-  // فیلتر کردن منوها بر اساس سطح دسترسی
   const navigation = [
     { name: 'داشبورد', icon: LayoutDashboard, view: View.DASHBOARD, roles: ['ADMIN'] },
     { name: 'انبار محصولات', icon: Package, view: View.PRODUCTS, roles: ['ADMIN', 'SALESPERSON'] },
@@ -90,7 +85,6 @@ const App: React.FC = () => {
   if (!currentUser) {
     return <Login users={users} onLogin={(user) => {
       setCurrentUser(user);
-      // انتقال فروشنده به بخش انبار در صورت عدم دسترسی به داشبورد
       if (user.role === 'SALESPERSON') setCurrentView(View.PRODUCTS);
     }} />;
   }
@@ -173,8 +167,8 @@ const App: React.FC = () => {
               </h1>
             </div>
             <div className="flex items-center gap-3">
-               <button onClick={() => window.location.reload()} className="p-2.5 bg-slate-50 text-slate-400 hover:text-indigo-600 rounded-xl transition-colors">
-                 <RefreshCw size={20} />
+               <button onClick={loadInitialData} className="p-2.5 bg-slate-50 text-slate-400 hover:text-indigo-600 rounded-xl transition-colors">
+                 <RefreshCw size={20} className={!isLoaded ? 'animate-spin' : ''} />
                </button>
                <div className="hidden md:flex flex-col items-end">
                   <span className="text-sm font-black text-slate-900">امروز</span>
@@ -190,7 +184,7 @@ const App: React.FC = () => {
               {!isLoaded ? (
                 <div className="flex flex-col items-center justify-center py-20 text-slate-400 space-y-4">
                   <div className="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
-                  <p className="font-bold">در حال همگام‌سازی...</p>
+                  <p className="font-bold">در حال دریافت اطلاعات...</p>
                 </div>
               ) : (
                 <>

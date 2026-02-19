@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Plus, Edit2, Trash2, Search, X, Hash } from 'lucide-react';
 import { Product } from '../types';
@@ -12,27 +13,43 @@ const ProductManager: React.FC<Props> = ({ products, setProducts }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
 
   const [formData, setFormData] = useState<Partial<Product>>({
     code: '', name: '', size: '', color: '', buyPrice: 0, sellPrice: 0, stock: 0, reorderPoint: 5
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsSaving(true);
 
-    // Check for duplicate product code
     const isDuplicate = products.some(p => p.code === formData.code && p.id !== editingProduct?.id);
     if (isDuplicate) {
       alert('این کد محصول قبلاً در سیستم ثبت شده است. لطفاً کد دیگری انتخاب کنید.');
+      setIsSaving(false);
       return;
     }
 
-    if (editingProduct) {
-      setProducts(products.map(p => p.id === editingProduct.id ? { ...formData, id: p.id } as Product : p));
-    } else {
-      setProducts([...products, { ...formData, id: Date.now().toString() } as Product]);
+    const finalProduct = (editingProduct 
+      ? { ...formData, id: editingProduct.id } 
+      : { ...formData, id: Date.now().toString() }) as Product;
+
+    try {
+      // ذخیره مستقیم در دیتابیس
+      await DB.upsertProduct(finalProduct);
+      
+      // بروزرسانی استیت محلی فقط در صورت موفقیت
+      if (editingProduct) {
+        setProducts(products.map(p => p.id === editingProduct.id ? finalProduct : p));
+      } else {
+        setProducts([...products, finalProduct]);
+      }
+      closeModal();
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsSaving(false);
     }
-    closeModal();
   };
 
   const closeModal = () => {
@@ -89,8 +106,7 @@ const ProductManager: React.FC<Props> = ({ products, setProducts }) => {
               <th className="px-6 py-4">کد کالا</th>
               <th className="px-6 py-4">نام کالا</th>
               <th className="px-6 py-4">سایز / رنگ</th>
-              <th className="px-6 py-4">قیمت خرید</th>
-              <th className="px-6 py-4">قیمت فروش</th>
+              <th className="px-6 py-4 font-bold text-indigo-600">قیمت فروش</th>
               <th className="px-6 py-4">موجودی</th>
               <th className="px-6 py-4 text-center">عملیات</th>
             </tr>
@@ -101,7 +117,6 @@ const ProductManager: React.FC<Props> = ({ products, setProducts }) => {
                 <td className="px-6 py-4 font-mono text-slate-500">{product.code}</td>
                 <td className="px-6 py-4 font-bold text-slate-800">{product.name}</td>
                 <td className="px-6 py-4 text-slate-600">{product.size} / {product.color}</td>
-                <td className="px-6 py-4 font-medium">{new Intl.NumberFormat('fa-IR').format(product.buyPrice)}</td>
                 <td className="px-6 py-4 font-bold text-indigo-600">{new Intl.NumberFormat('fa-IR').format(product.sellPrice)}</td>
                 <td className="px-6 py-4">
                   <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${
@@ -112,86 +127,59 @@ const ProductManager: React.FC<Props> = ({ products, setProducts }) => {
                 </td>
                 <td className="px-6 py-4">
                   <div className="flex items-center justify-center gap-2">
-                    <button onClick={() => handleEdit(product)} className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors" title="ویرایش">
+                    <button onClick={() => handleEdit(product)} className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors">
                       <Edit2 size={16} />
                     </button>
-                    <button onClick={() => handleDelete(product.id)} className="p-2 text-rose-600 hover:bg-rose-50 rounded-lg transition-colors" title="حذف">
+                    <button onClick={() => handleDelete(product.id)} className="p-2 text-rose-600 hover:bg-rose-50 rounded-lg transition-colors">
                       <Trash2 size={16} />
                     </button>
                   </div>
                 </td>
               </tr>
             ))}
-            {filteredProducts.length === 0 && (
-              <tr>
-                <td colSpan={7} className="px-6 py-12 text-center text-slate-400 font-medium">هیچ محصولی یافت نشد.</td>
-              </tr>
-            )}
           </tbody>
         </table>
       </div>
 
       {isModalOpen && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-          <div className="bg-white w-full max-w-lg rounded-[2rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+          <div className="bg-white w-full max-w-lg rounded-[2rem] shadow-2xl overflow-hidden">
             <div className="flex items-center justify-between p-7 border-b">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-indigo-100 text-indigo-600 rounded-xl">
-                  <Hash size={20} />
-                </div>
-                <h2 className="text-xl font-black text-slate-800">{editingProduct ? 'ویرایش کالا' : 'تعریف کالای جدید'}</h2>
-              </div>
-              <button onClick={closeModal} className="text-slate-400 hover:text-slate-600 transition-colors">
+              <h2 className="text-xl font-black text-slate-800">{editingProduct ? 'ویرایش کالا' : 'تعریف کالای جدید'}</h2>
+              <button onClick={closeModal} className="text-slate-400 hover:text-slate-600">
                 <X size={24} />
               </button>
             </div>
             <form onSubmit={handleSubmit} className="p-7 space-y-5">
               <div className="grid grid-cols-2 gap-5">
                 <div className="col-span-1">
-                  <label className="block text-xs font-bold text-slate-500 mb-2 mr-1">کد محصول (یکتا)</label>
-                  <input 
-                    required 
-                    type="text" 
-                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 transition-all font-mono" 
-                    placeholder="مثلاً: 1001"
-                    value={formData.code} 
-                    onChange={e => setFormData({...formData, code: e.target.value})} 
-                  />
+                  <label className="block text-xs font-bold text-slate-500 mb-2">کد محصول</label>
+                  <input required type="text" className="w-full px-4 py-3 bg-slate-50 border rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500" value={formData.code} onChange={e => setFormData({...formData, code: e.target.value})} />
                 </div>
                 <div className="col-span-1">
-                  <label className="block text-xs font-bold text-slate-500 mb-2 mr-1">نام محصول</label>
-                  <input required type="text" className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 transition-all font-bold" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
+                  <label className="block text-xs font-bold text-slate-500 mb-2">نام محصول</label>
+                  <input required type="text" className="w-full px-4 py-3 bg-slate-50 border rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 mb-2 mr-1">سایز</label>
-                  <input type="text" className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 transition-all" value={formData.size} onChange={e => setFormData({...formData, size: e.target.value})} />
+                  <label className="block text-xs font-bold text-slate-500 mb-2">قیمت خرید</label>
+                  <input required type="number" className="w-full px-4 py-3 bg-slate-50 border rounded-2xl outline-none" value={formData.buyPrice} onChange={e => setFormData({...formData, buyPrice: Number(e.target.value)})} />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 mb-2 mr-1">رنگ</label>
-                  <input type="text" className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 transition-all" value={formData.color} onChange={e => setFormData({...formData, color: e.target.value})} />
+                  <label className="block text-xs font-bold text-slate-500 mb-2">قیمت فروش</label>
+                  <input required type="number" className="w-full px-4 py-3 bg-slate-50 border rounded-2xl outline-none" value={formData.sellPrice} onChange={e => setFormData({...formData, sellPrice: Number(e.target.value)})} />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 mb-2 mr-1">قیمت خرید (ریال)</label>
-                  <input required type="number" className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 transition-all font-bold" value={formData.buyPrice} onChange={e => setFormData({...formData, buyPrice: Number(e.target.value)})} />
+                  <label className="block text-xs font-bold text-slate-500 mb-2">موجودی</label>
+                  <input required type="number" className="w-full px-4 py-3 bg-slate-50 border rounded-2xl outline-none" value={formData.stock} onChange={e => setFormData({...formData, stock: Number(e.target.value)})} />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 mb-2 mr-1">قیمت فروش (ریال)</label>
-                  <input required type="number" className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 transition-all font-bold text-indigo-600" value={formData.sellPrice} onChange={e => setFormData({...formData, sellPrice: Number(e.target.value)})} />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 mb-2 mr-1">موجودی اولیه</label>
-                  <input required type="number" className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 transition-all font-bold" value={formData.stock} onChange={e => setFormData({...formData, stock: Number(e.target.value)})} />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 mb-2 mr-1">نقطه سفارش</label>
-                  <input required type="number" className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 transition-all font-bold" value={formData.reorderPoint} onChange={e => setFormData({...formData, reorderPoint: Number(e.target.value)})} />
+                  <label className="block text-xs font-bold text-slate-500 mb-2">نقطه سفارش</label>
+                  <input required type="number" className="w-full px-4 py-3 bg-slate-50 border rounded-2xl outline-none" value={formData.reorderPoint} onChange={e => setFormData({...formData, reorderPoint: Number(e.target.value)})} />
                 </div>
               </div>
-              <div className="pt-4">
-                <button type="submit" className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-black hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-600/20 active:scale-[0.98]">
-                  ذخیره اطلاعات محصول
-                </button>
-              </div>
+              <button disabled={isSaving} type="submit" className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-black hover:bg-indigo-700 disabled:opacity-50">
+                {isSaving ? 'در حال ذخیره...' : 'ذخیره محصول'}
+              </button>
             </form>
           </div>
         </div>

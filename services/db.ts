@@ -7,12 +7,10 @@ const supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS
 
 let supabase: any = null;
 
-if (supabaseUrl && supabaseKey) {
-  try {
-    supabase = createClient(supabaseUrl, supabaseKey);
-  } catch (err) {
-    console.error('❌ خطا در راه‌اندازی دیتابیس:', err);
-  }
+try {
+  supabase = createClient(supabaseUrl, supabaseKey);
+} catch (err) {
+  console.error('❌ خطا در اتصال به Supabase:', err);
 }
 
 export const DB = {
@@ -22,12 +20,13 @@ export const DB = {
   getUsers: async (): Promise<User[]> => {
     if (!supabase) return [];
     const { data, error } = await supabase.from('users').select('*');
-    if (error) return [];
+    if (error) { console.error('Error fetching users:', error); return []; }
     return data as User[];
   },
   saveUser: async (user: User) => {
     if (!supabase) return;
-    await supabase.from('users').upsert(user);
+    const { error } = await supabase.from('users').upsert(user);
+    if (error) console.error('❌ خطا در ذخیره کاربر. مطمئن شوید RLS غیرفعال است:', error);
   },
   deleteUser: async (id: string) => {
     if (!supabase) return;
@@ -38,26 +37,34 @@ export const DB = {
   getProducts: async () => {
     if (!supabase) return [];
     const { data, error } = await supabase.from('products').select('*');
+    if (error) { console.error('Error fetching products:', error); return []; }
     return (data as Product[]) || [];
   },
-  saveProducts: async (products: Product[]) => {
-    if (!supabase || products.length === 0) return;
-    await supabase.from('products').upsert(products);
+  upsertProduct: async (product: Product) => {
+    if (!supabase) return;
+    const { error } = await supabase.from('products').upsert(product);
+    if (error) {
+      console.error('❌ خطا در ذخیره محصول:', error);
+      alert('خطا در ذخیره در دیتابیس! لطفاً تنظیمات RLS را چک کنید.');
+    }
   },
   deleteProduct: async (id: string) => {
     if (!supabase) return;
-    await supabase.from('products').delete().eq('id', id);
+    const { error } = await supabase.from('products').delete().eq('id', id);
+    if (error) console.error('Error deleting product:', error);
   },
 
   // Sales
   getSales: async () => {
     if (!supabase) return [];
     const { data, error } = await supabase.from('sales').select('*');
+    if (error) { console.error('Error fetching sales:', error); return []; }
     return (data as Sale[]) || [];
   },
-  saveSales: async (sales: Sale[]) => {
-    if (!supabase || sales.length === 0) return;
-    await supabase.from('sales').upsert(sales);
+  addSale: async (sale: Sale) => {
+    if (!supabase) return;
+    const { error } = await supabase.from('sales').insert(sale);
+    if (error) console.error('❌ خطا در ثبت فروش در دیتابیس:', error);
   },
   deleteSale: async (id: string) => {
     if (!supabase) return;
@@ -68,11 +75,13 @@ export const DB = {
   getExpenses: async () => {
     if (!supabase) return [];
     const { data, error } = await supabase.from('expenses').select('*');
+    if (error) { console.error('Error fetching expenses:', error); return []; }
     return (data as Expense[]) || [];
   },
-  saveExpenses: async (expenses: Expense[]) => {
-    if (!supabase || expenses.length === 0) return;
-    await supabase.from('expenses').upsert(expenses);
+  addExpense: async (expense: Expense) => {
+    if (!supabase) return;
+    const { error } = await supabase.from('expenses').insert(expense);
+    if (error) console.error('❌ خطا در ثبت هزینه در دیتابیس:', error);
   },
   deleteExpense: async (id: string) => {
     if (!supabase) return;

@@ -27,6 +27,9 @@ export interface Sale {
   productId: string;
   productName: string;
   quantity: number;
+  subtotal: number;
+  discountAmount: number;
+  taxAmount: number;
   totalAmount: number;
   profit: number;
 }
