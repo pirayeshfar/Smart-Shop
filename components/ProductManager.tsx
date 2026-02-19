@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { Plus, Edit2, Trash2, Search, X, Hash } from 'lucide-react';
+import { Plus, Edit2, Trash2, Search, X } from 'lucide-react';
 import { Product } from '../types';
 import { DB } from '../services/db';
 
@@ -35,10 +35,8 @@ const ProductManager: React.FC<Props> = ({ products, setProducts }) => {
       : { ...formData, id: Date.now().toString() }) as Product;
 
     try {
-      // ذخیره مستقیم در دیتابیس
       await DB.upsertProduct(finalProduct);
       
-      // بروزرسانی استیت محلی فقط در صورت موفقیت
       if (editingProduct) {
         setProducts(products.map(p => p.id === editingProduct.id ? finalProduct : p));
       } else {
@@ -85,7 +83,7 @@ const ProductManager: React.FC<Props> = ({ products, setProducts }) => {
           <input 
             type="text" 
             placeholder="جستجوی کد یا نام..." 
-            className="w-full pr-10 pl-4 py-2 border rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none font-medium"
+            className="w-full pr-10 pl-4 py-2 border rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none font-medium text-right"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
@@ -103,22 +101,22 @@ const ProductManager: React.FC<Props> = ({ products, setProducts }) => {
         <table className="w-full text-right">
           <thead className="bg-slate-50 text-slate-500 text-xs uppercase font-bold">
             <tr>
-              <th className="px-6 py-4">کد کالا</th>
-              <th className="px-6 py-4">نام کالا</th>
-              <th className="px-6 py-4">سایز / رنگ</th>
-              <th className="px-6 py-4 font-bold text-indigo-600">قیمت فروش</th>
-              <th className="px-6 py-4">موجودی</th>
+              <th className="px-6 py-4 text-right">کد کالا</th>
+              <th className="px-6 py-4 text-right">نام کالا</th>
+              <th className="px-6 py-4 text-right">سایز / رنگ</th>
+              <th className="px-6 py-4 text-right font-bold text-indigo-600">قیمت فروش</th>
+              <th className="px-6 py-4 text-right">موجودی</th>
               <th className="px-6 py-4 text-center">عملیات</th>
             </tr>
           </thead>
           <tbody className="divide-y text-sm">
             {filteredProducts.map(product => (
               <tr key={product.id} className="hover:bg-slate-50 transition-colors">
-                <td className="px-6 py-4 font-mono text-slate-500">{product.code}</td>
-                <td className="px-6 py-4 font-bold text-slate-800">{product.name}</td>
-                <td className="px-6 py-4 text-slate-600">{product.size} / {product.color}</td>
-                <td className="px-6 py-4 font-bold text-indigo-600">{new Intl.NumberFormat('fa-IR').format(product.sellPrice)}</td>
-                <td className="px-6 py-4">
+                <td className="px-6 py-4 font-mono text-slate-500 text-right">{product.code}</td>
+                <td className="px-6 py-4 font-bold text-slate-800 text-right">{product.name}</td>
+                <td className="px-6 py-4 text-slate-600 text-right">{product.size} / {product.color}</td>
+                <td className="px-6 py-4 font-bold text-indigo-600 text-right">{new Intl.NumberFormat('fa-IR').format(product.sellPrice)}</td>
+                <td className="px-6 py-4 text-right">
                   <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${
                     product.stock <= product.reorderPoint ? 'bg-rose-100 text-rose-700' : 'bg-emerald-100 text-emerald-700'
                   }`}>
@@ -150,34 +148,45 @@ const ProductManager: React.FC<Props> = ({ products, setProducts }) => {
                 <X size={24} />
               </button>
             </div>
-            <form onSubmit={handleSubmit} className="p-7 space-y-5">
+            <form onSubmit={handleSubmit} className="p-7 space-y-5 text-right">
               <div className="grid grid-cols-2 gap-5">
                 <div className="col-span-1">
-                  <label className="block text-xs font-bold text-slate-500 mb-2">کد محصول</label>
-                  <input required type="text" className="w-full px-4 py-3 bg-slate-50 border rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500" value={formData.code} onChange={e => setFormData({...formData, code: e.target.value})} />
+                  <label className="block text-xs font-bold text-slate-500 mb-2 mr-1">کد محصول</label>
+                  <input required type="text" className="w-full px-4 py-3 bg-slate-50 border rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 text-right" value={formData.code} onChange={e => setFormData({...formData, code: e.target.value})} />
                 </div>
                 <div className="col-span-1">
-                  <label className="block text-xs font-bold text-slate-500 mb-2">نام محصول</label>
-                  <input required type="text" className="w-full px-4 py-3 bg-slate-50 border rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
+                  <label className="block text-xs font-bold text-slate-500 mb-2 mr-1">نام محصول</label>
+                  <input required type="text" className="w-full px-4 py-3 bg-slate-50 border rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 text-right" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
+                </div>
+                
+                {/* بخش سایز و رنگ که بازگشته است */}
+                <div className="col-span-1">
+                  <label className="block text-xs font-bold text-slate-500 mb-2 mr-1">سایز</label>
+                  <input type="text" className="w-full px-4 py-3 bg-slate-50 border rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 text-right" value={formData.size} onChange={e => setFormData({...formData, size: e.target.value})} placeholder="مثلاً L یا 42" />
+                </div>
+                <div className="col-span-1">
+                  <label className="block text-xs font-bold text-slate-500 mb-2 mr-1">رنگ</label>
+                  <input type="text" className="w-full px-4 py-3 bg-slate-50 border rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 text-right" value={formData.color} onChange={e => setFormData({...formData, color: e.target.value})} placeholder="مثلاً مشکی" />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 mb-2 mr-1">قیمت خرید</label>
+                  <input required type="number" className="w-full px-4 py-3 bg-slate-50 border rounded-2xl outline-none text-right" value={formData.buyPrice} onChange={e => setFormData({...formData, buyPrice: Number(e.target.value)})} />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 mb-2">قیمت خرید</label>
-                  <input required type="number" className="w-full px-4 py-3 bg-slate-50 border rounded-2xl outline-none" value={formData.buyPrice} onChange={e => setFormData({...formData, buyPrice: Number(e.target.value)})} />
+                  <label className="block text-xs font-bold text-slate-500 mb-2 mr-1">قیمت فروش</label>
+                  <input required type="number" className="w-full px-4 py-3 bg-slate-50 border rounded-2xl outline-none text-right" value={formData.sellPrice} onChange={e => setFormData({...formData, sellPrice: Number(e.target.value)})} />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 mb-2">قیمت فروش</label>
-                  <input required type="number" className="w-full px-4 py-3 bg-slate-50 border rounded-2xl outline-none" value={formData.sellPrice} onChange={e => setFormData({...formData, sellPrice: Number(e.target.value)})} />
+                  <label className="block text-xs font-bold text-slate-500 mb-2 mr-1">موجودی</label>
+                  <input required type="number" className="w-full px-4 py-3 bg-slate-50 border rounded-2xl outline-none text-right" value={formData.stock} onChange={e => setFormData({...formData, stock: Number(e.target.value)})} />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 mb-2">موجودی</label>
-                  <input required type="number" className="w-full px-4 py-3 bg-slate-50 border rounded-2xl outline-none" value={formData.stock} onChange={e => setFormData({...formData, stock: Number(e.target.value)})} />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 mb-2">نقطه سفارش</label>
-                  <input required type="number" className="w-full px-4 py-3 bg-slate-50 border rounded-2xl outline-none" value={formData.reorderPoint} onChange={e => setFormData({...formData, reorderPoint: Number(e.target.value)})} />
+                  <label className="block text-xs font-bold text-slate-500 mb-2 mr-1">نقطه سفارش</label>
+                  <input required type="number" className="w-full px-4 py-3 bg-slate-50 border rounded-2xl outline-none text-right" value={formData.reorderPoint} onChange={e => setFormData({...formData, reorderPoint: Number(e.target.value)})} />
                 </div>
               </div>
-              <button disabled={isSaving} type="submit" className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-black hover:bg-indigo-700 disabled:opacity-50">
+              <button disabled={isSaving} type="submit" className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-black hover:bg-indigo-700 disabled:opacity-50 transition-all shadow-lg shadow-indigo-600/20">
                 {isSaving ? 'در حال ذخیره...' : 'ذخیره محصول'}
               </button>
             </form>
