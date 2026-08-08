@@ -1,5 +1,6 @@
 {
   "name": "مدیریت فروشگاه هوشمند (Smart Shop)",
   "description": "یک سامانه مدیریت فروشگاه حرفه‌ای با پشتیبانی کامل از زبان فارسی، مدیریت موجودی، فروش، هزینه‌ها و تحلیل هوش مصنوعی.",
-  "requestFramePermissions": []
+  "requestFramePermissions": [],
+  "majorCapabilities": []
 }

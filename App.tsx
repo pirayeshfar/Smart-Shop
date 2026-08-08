@@ -188,9 +188,9 @@ const App: React.FC = () => {
                 </div>
               ) : (
                 <>
-                  {currentView === View.DASHBOARD && <Dashboard products={products} sales={sales} expenses={expenses} />}
+                  {currentView === View.DASHBOARD && <Dashboard products={products} sales={sales} expenses={expenses} users={users} />}
                   {currentView === View.PRODUCTS && <ProductManager products={products} setProducts={setProducts} />}
-                  {currentView === View.SALES && <SalesManager products={products} setProducts={setProducts} sales={sales} setSales={setSales} />}
+                  {currentView === View.SALES && <SalesManager products={products} setProducts={setProducts} sales={sales} setSales={setSales} currentUser={currentUser} />}
                   {currentView === View.EXPENSES && <ExpenseManager expenses={expenses} setExpenses={setExpenses} />}
                   {currentView === View.AI_INSIGHTS && <AIInsights products={products} sales={sales} expenses={expenses} />}
                   {currentView === View.USER_MANAGEMENT && <UserManager users={users} setUsers={setUsers} />}

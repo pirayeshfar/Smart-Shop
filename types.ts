@@ -7,6 +7,7 @@ export interface User {
   password: string;
   role: Role;
   fullName: string;
+  commissionRate?: number;
 }
 
 export interface Product {
@@ -32,6 +33,8 @@ export interface Sale {
   taxAmount: number;
   totalAmount: number;
   profit: number;
+  sellerId?: string;
+  sellerName?: string;
 }
 
 export interface Expense {

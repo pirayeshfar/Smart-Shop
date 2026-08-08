@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
-import { Plus, Trash2, ShoppingBag, Percent, ReceiptText } from 'lucide-react';
-import { Product, Sale } from '../types';
+import { Plus, Trash2, ShoppingBag, Percent, ReceiptText, User as UserIcon } from 'lucide-react';
+import { Product, Sale, User } from '../types';
 import { DB } from '../services/db';
 
 interface Props {
@@ -9,9 +9,10 @@ interface Props {
   setProducts: React.Dispatch<React.SetStateAction<Product[]>>;
   sales: Sale[];
   setSales: React.Dispatch<React.SetStateAction<Sale[]>>;
+  currentUser?: User | null;
 }
 
-const SalesManager: React.FC<Props> = ({ products, setProducts, sales, setSales }) => {
+const SalesManager: React.FC<Props> = ({ products, setProducts, sales, setSales, currentUser }) => {
   const [selectedProductId, setSelectedProductId] = useState('');
   const [quantity, setQuantity] = useState(1);
   const [discountPercent, setDiscountPercent] = useState(0);
@@ -48,7 +49,9 @@ const SalesManager: React.FC<Props> = ({ products, setProducts, sales, setSales 
       discountAmount,
       taxAmount,
       totalAmount: finalTotal,
-      profit
+      profit,
+      sellerId: currentUser?.id,
+      sellerName: currentUser?.fullName
     };
 
     const updatedProduct = { ...product, stock: product.stock - quantity };
@@ -160,6 +163,7 @@ const SalesManager: React.FC<Props> = ({ products, setProducts, sales, setSales 
                 <tr>
                   <th className="px-6 py-4">تاریخ</th>
                   <th className="px-6 py-4">محصول</th>
+                  <th className="px-6 py-4">فروشنده</th>
                   <th className="px-6 py-4 font-black">مبلغ نهایی</th>
                   <th className="px-6 py-4 text-center">عملیات</th>
                 </tr>
@@ -169,6 +173,16 @@ const SalesManager: React.FC<Props> = ({ products, setProducts, sales, setSales 
                   <tr key={sale.id} className="hover:bg-slate-50 transition-colors">
                     <td className="px-6 py-4 text-slate-500">{new Date(sale.date).toLocaleDateString('fa-IR')}</td>
                     <td className="px-6 py-4 font-black text-slate-800">{sale.productName}</td>
+                    <td className="px-6 py-4 text-slate-600 font-bold">
+                      {sale.sellerName ? (
+                        <span className="inline-flex items-center gap-1.5 bg-slate-100 text-slate-700 px-2.5 py-1 rounded-lg text-xs">
+                          <UserIcon size={12} className="text-indigo-500" />
+                          {sale.sellerName}
+                        </span>
+                      ) : (
+                        <span className="text-slate-400 text-xs font-normal">سیستمی</span>
+                      )}
+                    </td>
                     <td className="px-6 py-4 font-black text-indigo-600 text-lg">{new Intl.NumberFormat('fa-IR').format(sale.totalAmount)}</td>
                     <td className="px-6 py-4">
                       <div className="flex justify-center">
