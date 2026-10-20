@@ -403,10 +403,10 @@ const ProductManager: React.FC<Props> = ({ products, setProducts }) => {
         </div>
       )}
 
-      {/* بخش سرچ و اکشن‌های بالای لیست — شناور و ثابت هنگام اسکرول (Sticky Header) */}
-      <div className="sticky top-24 z-30 bg-white/95 backdrop-blur-md px-6 py-4 border-b border-slate-200/80 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4 shadow-sm transition-all">
+      {/* بخش سرچ و اکشن‌های بالای لیست — حالت استاندارد و عادی */}
+      <div className="bg-white px-6 py-4 border-b border-slate-200/80 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4">
         
-        {/* فیلد جستجو با قابلیت شناور و دکمه پاک‌کردن سریع */}
+        {/* فیلد جستجو با دکمه پاک‌کردن سریع */}
         <div className="flex items-center gap-3 flex-1 max-w-md">
           <div className="relative w-full">
             <Search className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
@@ -458,8 +458,8 @@ const ProductManager: React.FC<Props> = ({ products, setProducts }) => {
       {/* جدول اقلام انبار */}
       <div className="overflow-x-auto min-h-[350px]">
         <table className="w-full text-right border-collapse">
-          {/* سرستون‌های قابل کلیک برای مرتب‌سازی (Sort) با وضعیت چسبنده */}
-          <thead className="sticky top-[168px] z-20 bg-slate-50/95 backdrop-blur-sm text-slate-600 text-xs font-black border-b border-slate-200 shadow-xs">
+          {/* سرستون‌های قابل کلیک برای مرتب‌سازی (Sort) در حالت عادی و استاندارد */}
+          <thead className="bg-slate-50 text-slate-600 text-xs font-black border-b border-slate-200">
             <tr>
               <th 
                 onClick={() => handleSort('code')}
