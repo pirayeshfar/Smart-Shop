@@ -11,11 +11,13 @@ import {
   Settings,
   LogOut,
   User as UserIcon,
-  Copyright
+  Copyright,
+  BarChart3
 } from 'lucide-react';
 import { View, Product, Sale, Expense, User } from './types';
 import { DB } from './services/db';
 import Dashboard from './components/Dashboard';
+import ReportsManager from './components/ReportsManager';
 import ProductManager from './components/ProductManager';
 import SalesManager from './components/SalesManager';
 import ExpenseManager from './components/ExpenseManager';
@@ -75,6 +77,7 @@ const App: React.FC = () => {
 
   const navigation = [
     { name: 'داشبورد', icon: LayoutDashboard, view: View.DASHBOARD, roles: ['ADMIN'] },
+    { name: 'گزارشات جامع', icon: BarChart3, view: View.REPORTS, roles: ['ADMIN'] },
     { name: 'انبار محصولات', icon: Package, view: View.PRODUCTS, roles: ['ADMIN', 'SALESPERSON'] },
     { name: 'ثبت فروش', icon: ShoppingCart, view: View.SALES, roles: ['ADMIN', 'SALESPERSON'] },
     { name: 'مدیریت هزینه‌ها', icon: Wallet, view: View.EXPENSES, roles: ['ADMIN'] },
@@ -189,6 +192,7 @@ const App: React.FC = () => {
               ) : (
                 <>
                   {currentView === View.DASHBOARD && <Dashboard products={products} sales={sales} expenses={expenses} users={users} />}
+                  {currentView === View.REPORTS && <ReportsManager products={products} sales={sales} expenses={expenses} users={users} />}
                   {currentView === View.PRODUCTS && <ProductManager products={products} setProducts={setProducts} />}
                   {currentView === View.SALES && <SalesManager products={products} setProducts={setProducts} sales={sales} setSales={setSales} currentUser={currentUser} />}
                   {currentView === View.EXPENSES && <ExpenseManager expenses={expenses} setExpenses={setExpenses} />}
