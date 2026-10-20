@@ -76,6 +76,29 @@ export const DB = {
     }
   },
 
+  upsertProducts: async (productsList: Product[]) => {
+    if (!supabase || productsList.length === 0) return;
+    const payload = productsList.map(product => ({
+      id: product.id,
+      code: product.code,
+      name: product.name,
+      size: product.size,
+      color: product.color,
+      buyPrice: product.buyPrice ?? 0,
+      sellPrice: product.sellPrice ?? 0,
+      stock: product.stock,
+      reorderPoint: product.reorderPoint
+    }));
+    
+    const { error } = await supabase.from('products').upsert(payload);
+    if (error) {
+      console.warn('Supabase bulk upsert failed, falling back to sequential upsert:', error.message);
+      for (const prod of productsList) {
+        await DB.upsertProduct(prod);
+      }
+    }
+  },
+
   deleteProduct: async (id: string) => {
     if (!supabase) return;
     await supabase.from('products').delete().eq('id', id);
