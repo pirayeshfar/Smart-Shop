@@ -64,7 +64,7 @@ const ExpenseManager: React.FC<Props> = ({ expenses, setExpenses }) => {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">مبلغ (ریال)</label>
+              <label className="block text-sm font-medium text-slate-700 mb-1">مبلغ (تومان)</label>
               <input 
                 required
                 type="number" 
@@ -95,7 +95,7 @@ const ExpenseManager: React.FC<Props> = ({ expenses, setExpenses }) => {
                 <tr>
                   <th className="px-6 py-4">تاریخ</th>
                   <th className="px-6 py-4">شرح</th>
-                  <th className="px-6 py-4">مبلغ</th>
+                  <th className="px-6 py-4">مبلغ (تومان)</th>
                   <th className="px-6 py-4 text-center">عملیات</th>
                 </tr>
               </thead>
@@ -104,7 +104,9 @@ const ExpenseManager: React.FC<Props> = ({ expenses, setExpenses }) => {
                   <tr key={expense.id} className="hover:bg-slate-50">
                     <td className="px-6 py-4 text-slate-500">{new Date(expense.date).toLocaleDateString('fa-IR')}</td>
                     <td className="px-6 py-4 font-medium text-slate-800">{expense.description}</td>
-                    <td className="px-6 py-4 font-bold text-rose-600">{new Intl.NumberFormat('fa-IR').format(expense.amount)}</td>
+                    <td className="px-6 py-4 font-bold text-rose-600">
+                      {new Intl.NumberFormat('fa-IR').format(expense.amount)} تومان
+                    </td>
                     <td className="px-6 py-4 text-center">
                       <button onClick={() => handleDelete(expense.id)} className="p-2 text-rose-600 hover:bg-rose-50 rounded-lg">
                         <Trash2 size={16} />

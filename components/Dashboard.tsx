@@ -37,7 +37,7 @@ interface Props {
 }
 
 const formatPrice = (price: number) => {
-  return new Intl.NumberFormat('fa-IR').format(price) + ' ریال';
+  return new Intl.NumberFormat('fa-IR').format(price) + ' تومان';
 };
 
 const Dashboard: React.FC<Props> = ({ products, sales, expenses, users }) => {

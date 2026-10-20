@@ -46,7 +46,7 @@ interface Props {
 type PeriodType = 'WEEKLY' | 'MONTHLY' | 'YEARLY';
 
 const formatPrice = (price: number) => {
-  return new Intl.NumberFormat('fa-IR').format(Math.round(price)) + ' ریال';
+  return new Intl.NumberFormat('fa-IR').format(Math.round(price)) + ' تومان';
 };
 
 const ReportsManager: React.FC<Props> = ({ products, sales, expenses, users }) => {
@@ -308,7 +308,7 @@ const ReportsManager: React.FC<Props> = ({ products, sales, expenses, users }) =
 
   // خروجی اکسل/CSV
   const handleExportCSV = () => {
-    const headers = ['کد فاکتور', 'تاریخ', 'نام محصول', 'تعداد', 'فروشنده', 'مبلغ کل (ریال)', 'سود (ریال)'];
+    const headers = ['کد فاکتور', 'تاریخ', 'نام محصول', 'تعداد', 'فروشنده', 'مبلغ کل (تومان)', 'سود (تومان)'];
     const rows = currentSales.map(s => [
       s.id,
       new Date(s.date).toLocaleDateString('fa-IR'),
@@ -654,7 +654,7 @@ const ReportsManager: React.FC<Props> = ({ products, sales, expenses, users }) =
               </div>
               <div>
                 <h3 className="font-black text-slate-800 text-base">۵ کالای برتر و پرفروش دوره</h3>
-                <p className="text-[11px] text-slate-400 font-bold">بیشترین حجم فروش و ارزش ریالی ایجاد شده</p>
+                <p className="text-[11px] text-slate-400 font-bold">بیشترین حجم فروش و ارزش نقدی (تومان) ایجاد شده</p>
               </div>
             </div>
             <span className="text-xs font-bold text-slate-500 bg-slate-100 px-2.5 py-1 rounded-lg">

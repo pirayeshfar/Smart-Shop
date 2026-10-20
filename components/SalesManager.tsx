@@ -67,7 +67,7 @@ const SalesManager: React.FC<Props> = ({ products, setProducts, sales, setSales,
     );
   }, [sales, currentUser, isAdmin]);
 
-  // مجموع کارکرد ریالی فروش‌های قابل مشاهده
+  // مجموع کارکرد فروش‌های قابل مشاهده (تومان)
   const totalVisibleAmount = useMemo(() => {
     return visibleSales.reduce((sum, s) => sum + s.totalAmount, 0);
   }, [visibleSales]);
@@ -277,7 +277,7 @@ const SalesManager: React.FC<Props> = ({ products, setProducts, sales, setSales,
 
                                 <div className="text-left shrink-0">
                                   <span className="block font-black text-indigo-600 text-xs">
-                                    {new Intl.NumberFormat('fa-IR').format(p.sellPrice)} ریال
+                                    {new Intl.NumberFormat('fa-IR').format(p.sellPrice)} تومان
                                   </span>
                                   {isOutOfStock ? (
                                     <span className="text-[10px] font-bold text-rose-500 bg-rose-50 px-2 py-0.5 rounded-md">
@@ -335,7 +335,7 @@ const SalesManager: React.FC<Props> = ({ products, setProducts, sales, setSales,
                   <div className="pt-2 border-t border-indigo-100/80 flex items-center justify-between text-xs">
                     <span className="font-bold text-slate-500">قیمت واحد:</span>
                     <span className="font-black text-indigo-700 text-sm">
-                      {new Intl.NumberFormat('fa-IR').format(selectedProduct.sellPrice)} ریال
+                      {new Intl.NumberFormat('fa-IR').format(selectedProduct.sellPrice)} تومان
                     </span>
                   </div>
 
@@ -418,24 +418,24 @@ const SalesManager: React.FC<Props> = ({ products, setProducts, sales, setSales,
               <div className="p-4 bg-slate-900 text-white rounded-2xl space-y-2">
                 <div className="flex justify-between items-center text-xs text-slate-300 font-bold">
                   <span>جمع کل کالایی:</span>
-                  <span>{new Intl.NumberFormat('fa-IR').format(subtotal)} ریال</span>
+                  <span>{new Intl.NumberFormat('fa-IR').format(subtotal)} تومان</span>
                 </div>
                 {discountAmount > 0 && (
                   <div className="flex justify-between items-center text-xs text-rose-400 font-bold">
                     <span>مبلغ تخفیف:</span>
-                    <span>- {new Intl.NumberFormat('fa-IR').format(discountAmount)} ریال</span>
+                    <span>- {new Intl.NumberFormat('fa-IR').format(discountAmount)} تومان</span>
                   </div>
                 )}
                 {taxAmount > 0 && (
                   <div className="flex justify-between items-center text-xs text-emerald-400 font-bold">
                     <span>مالیات بر ارزش افزوده:</span>
-                    <span>+ {new Intl.NumberFormat('fa-IR').format(taxAmount)} ریال</span>
+                    <span>+ {new Intl.NumberFormat('fa-IR').format(taxAmount)} تومان</span>
                   </div>
                 )}
                 <div className="flex justify-between items-center border-t border-slate-800 pt-3 mt-2">
                   <span className="font-black text-xs text-slate-200">مبلغ نهایی فاکتور:</span>
                   <span className="font-black text-lg text-indigo-400">
-                    {new Intl.NumberFormat('fa-IR').format(finalTotal)} ریال
+                    {new Intl.NumberFormat('fa-IR').format(finalTotal)} تومان
                   </span>
                 </div>
               </div>
@@ -476,7 +476,7 @@ const SalesManager: React.FC<Props> = ({ products, setProducts, sales, setSales,
 
               <span className="bg-emerald-50 text-emerald-700 font-black text-xs px-3.5 py-2 rounded-xl border border-emerald-100/60 flex items-center gap-1.5">
                 <TrendingUp size={14} className="text-emerald-500" />
-                <span>کل کارکرد: {new Intl.NumberFormat('fa-IR').format(totalVisibleAmount)} ریال</span>
+                <span>کل کارکرد: {new Intl.NumberFormat('fa-IR').format(totalVisibleAmount)} تومان</span>
               </span>
             </div>
           </div>
@@ -527,7 +527,7 @@ const SalesManager: React.FC<Props> = ({ products, setProducts, sales, setSales,
                         )}
                       </td>
                       <td className="px-6 py-4 font-black text-indigo-600 text-base">
-                        {new Intl.NumberFormat('fa-IR').format(sale.totalAmount)} ریال
+                        {new Intl.NumberFormat('fa-IR').format(sale.totalAmount)} تومان
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex justify-center">

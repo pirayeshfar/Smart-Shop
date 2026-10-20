@@ -251,7 +251,7 @@ const ProductManager: React.FC<Props> = ({ products, setProducts }) => {
                 <td className="px-6 py-4 font-bold text-slate-800 text-right">{product.name}</td>
                 <td className="px-6 py-4 text-slate-600 text-right">{product.size} / {product.color}</td>
                 <td className="px-6 py-4 font-bold text-indigo-600 text-right">
-                  {new Intl.NumberFormat('fa-IR').format(product.sellPrice)} ریال
+                  {new Intl.NumberFormat('fa-IR').format(product.sellPrice)} تومان
                 </td>
                 <td className="px-6 py-4 text-right">
                   <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${
@@ -368,20 +368,22 @@ const ProductManager: React.FC<Props> = ({ products, setProducts }) => {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-600 mb-1.5 mr-1">قیمت خرید (ریال)</label>
+                  <label className="block text-xs font-bold text-slate-600 mb-1.5 mr-1">قیمت خرید (تومان)</label>
                   <input 
                     required 
                     type="number" 
+                    min="0"
                     className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none text-right font-bold text-xs" 
-                    value={formData.buyPrice || ''} 
-                    onChange={e => setFormData({...formData, buyPrice: Number(e.target.value)})} 
+                    value={formData.buyPrice ?? 0} 
+                    onChange={e => setFormData({...formData, buyPrice: e.target.value === '' ? 0 : Number(e.target.value)})} 
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-600 mb-1.5 mr-1">قیمت فروش (ریال)</label>
+                  <label className="block text-xs font-bold text-slate-600 mb-1.5 mr-1">قیمت فروش (تومان)</label>
                   <input 
                     required 
                     type="number" 
+                    min="0"
                     className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none text-right font-bold text-xs text-indigo-700" 
                     value={formData.sellPrice || ''} 
                     onChange={e => setFormData({...formData, sellPrice: Number(e.target.value)})} 
