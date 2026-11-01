@@ -314,7 +314,7 @@ const ReportsManager: React.FC<Props> = ({ products, sales, expenses, users }) =
       new Date(s.date).toLocaleDateString('fa-IR'),
       `"${s.productName.replace(/"/g, '""')}"`,
       s.quantity,
-      `"${(s.sellerName || 'سیستمی').replace(/"/g, '""')}"`,
+      `"${(s.sellerName || 'مدیر سیستم').replace(/"/g, '""')}"`,
       s.totalAmount,
       s.profit
     ]);
@@ -818,8 +818,14 @@ const ReportsManager: React.FC<Props> = ({ products, sales, expenses, users }) =
                         {sale.quantity} عدد
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-slate-600 text-xs font-bold">
-                      {sale.sellerName || 'سیستمی'}
+                    <td className="px-6 py-4 text-xs font-bold">
+                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg ${
+                        sale.sellerName && !sale.sellerName.includes('مدیر') 
+                          ? 'bg-indigo-50 text-indigo-700 border border-indigo-100/60' 
+                          : 'bg-amber-50 text-amber-800 border border-amber-200/60'
+                      }`}>
+                        {sale.sellerName || 'مدیر سیستم'}
+                      </span>
                     </td>
                     <td className="px-6 py-4 font-black text-slate-900 text-sm">
                       {formatPrice(sale.totalAmount)}

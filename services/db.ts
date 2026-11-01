@@ -215,8 +215,8 @@ export const DB = {
       const meta = salesMeta[s.id];
       return {
         ...s,
-        sellerId: s.sellerId || meta?.sellerId,
-        sellerName: s.sellerName || meta?.sellerName
+        sellerId: s.sellerId || meta?.sellerId || 'admin-id',
+        sellerName: s.sellerName || meta?.sellerName || 'مدیر سیستم'
       };
     });
   },
@@ -262,6 +262,49 @@ export const DB = {
         totalAmount: sale.totalAmount,
         profit: sale.profit
       });
+      if (fallbackError) throw fallbackError;
+    }
+  },
+
+  updateSale: async (sale: Sale) => {
+    // بروزرسانی مشخصات فروشنده در حافظه محلی
+    if (sale.sellerId || sale.sellerName) {
+      DB.setStoredSaleMeta(sale.id, {
+        sellerId: sale.sellerId,
+        sellerName: sale.sellerName
+      });
+    }
+
+    if (!supabase) return;
+    const salePayload: any = {
+      date: sale.date,
+      productId: sale.productId,
+      productName: sale.productName,
+      quantity: sale.quantity,
+      subtotal: sale.subtotal,
+      discountAmount: sale.discountAmount,
+      taxAmount: sale.taxAmount,
+      totalAmount: sale.totalAmount,
+      profit: sale.profit
+    };
+    if (sale.sellerId) salePayload.sellerId = sale.sellerId;
+    if (sale.sellerName) salePayload.sellerName = sale.sellerName;
+
+    const { error } = await supabase.from('sales').update(salePayload).eq('id', sale.id);
+    if (error) {
+      console.warn('Supabase updateSale primary attempt:', error.message);
+      // Fallback in case remote database table does not have sellerId/sellerName columns
+      const { error: fallbackError } = await supabase.from('sales').update({
+        date: sale.date,
+        productId: sale.productId,
+        productName: sale.productName,
+        quantity: sale.quantity,
+        subtotal: sale.subtotal,
+        discountAmount: sale.discountAmount,
+        taxAmount: sale.taxAmount,
+        totalAmount: sale.totalAmount,
+        profit: sale.profit
+      }).eq('id', sale.id);
       if (fallbackError) throw fallbackError;
     }
   },
