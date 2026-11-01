@@ -13,17 +13,96 @@ try {
   console.error('❌ خطا در اتصال به Supabase:', err);
 }
 
+const COMMISSIONS_KEY = 'smart_shop_user_commissions';
+const SALES_META_KEY = 'smart_shop_sales_meta';
+
 export const DB = {
   isConnected: () => !!supabase,
 
+  // مدیریت حافظه محلی برای پورسانت‌ها و متادیتا
+  getStoredCommissions: (): Record<string, number> => {
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        const raw = localStorage.getItem(COMMISSIONS_KEY);
+        if (raw) return JSON.parse(raw);
+      }
+    } catch (e) {
+      console.warn('خطا در خواندن درصد پورسانت‌ها از حافظه محلی:', e);
+    }
+    return {};
+  },
+
+  setStoredCommission: (userId: string, rate: number) => {
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        const rates = DB.getStoredCommissions();
+        rates[userId] = rate;
+        localStorage.setItem(COMMISSIONS_KEY, JSON.stringify(rates));
+      }
+    } catch (e) {
+      console.warn('خطا در ذخیره درصد پورسانت در حافظه محلی:', e);
+    }
+  },
+
+  setStoredCommissionsBulk: (newRates: Record<string, number>) => {
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        const rates = { ...DB.getStoredCommissions(), ...newRates };
+        localStorage.setItem(COMMISSIONS_KEY, JSON.stringify(rates));
+      }
+    } catch (e) {
+      console.warn('خطا در ذخیره یکجای پورسانت‌ها:', e);
+    }
+  },
+
+  getStoredSalesMeta: (): Record<string, { sellerId?: string; sellerName?: string }> => {
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        const raw = localStorage.getItem(SALES_META_KEY);
+        if (raw) return JSON.parse(raw);
+      }
+    } catch (e) {
+      console.warn('خطا در خواندن مشخصات فروشندگان فاکتورها:', e);
+    }
+    return {};
+  },
+
+  setStoredSaleMeta: (saleId: string, meta: { sellerId?: string; sellerName?: string }) => {
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        const allMeta = DB.getStoredSalesMeta();
+        allMeta[saleId] = meta;
+        localStorage.setItem(SALES_META_KEY, JSON.stringify(allMeta));
+      }
+    } catch (e) {
+      console.warn('خطا در ذخیره مشخصات فروشنده فاکتور:', e);
+    }
+  },
+
   getUsers: async (): Promise<User[]> => {
-    if (!supabase) return [];
-    const { data, error } = await supabase.from('users').select('*');
-    if (error) return [];
-    return data || [];
+    let usersList: User[] = [];
+    if (supabase) {
+      const { data, error } = await supabase.from('users').select('*');
+      if (!error && data) {
+        usersList = data;
+      }
+    }
+    // ادغام درصد پورسانت‌های ذخیره شده با داده‌های کاربران
+    const savedRates = DB.getStoredCommissions();
+    return usersList.map(u => ({
+      ...u,
+      commissionRate: savedRates[u.id] !== undefined 
+        ? savedRates[u.id] 
+        : (typeof u.commissionRate === 'number' ? u.commissionRate : 5)
+    }));
   },
 
   saveUser: async (user: User) => {
+    // ابتدا در حافظه محلی ذخیره می‌کنیم تا بلافاصله پایدار بماند
+    if (typeof user.commissionRate === 'number') {
+      DB.setStoredCommission(user.id, user.commissionRate);
+    }
+
     if (!supabase) return;
     const userPayload: any = {
       id: user.id,
@@ -32,18 +111,39 @@ export const DB = {
       role: user.role,
       fullName: user.fullName
     };
-    if (user.commissionRate !== undefined) {
+    if (typeof user.commissionRate === 'number') {
       userPayload.commissionRate = user.commissionRate;
     }
+
     const { error } = await supabase.from('users').upsert(userPayload);
     if (error && userPayload.commissionRate !== undefined) {
-      // Fallback if remote schema doesn't have commissionRate column
+      // اگر جدول ریموت ستون commissionRate نداشت، بدون آن در دیتابیس ثبت می‌شود
       delete userPayload.commissionRate;
       await supabase.from('users').upsert(userPayload);
     }
   },
 
+  saveUserCommission: async (userId: string, rate: number) => {
+    DB.setStoredCommission(userId, rate);
+    if (!supabase) return;
+    // تلاش برای به‌روزرسانی ستون ریموت در صورت وجود
+    try {
+      await supabase.from('users').update({ commissionRate: rate }).eq('id', userId);
+    } catch {
+      // اگر ستون ریموت وجود نداشت خطایی ندهد
+    }
+  },
+
   deleteUser: async (id: string) => {
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        const rates = DB.getStoredCommissions();
+        delete rates[id];
+        localStorage.setItem(COMMISSIONS_KEY, JSON.stringify(rates));
+      }
+    } catch {
+      // ignore
+    }
     if (!supabase) return;
     await supabase.from('users').delete().eq('id', id);
   },
@@ -108,10 +208,28 @@ export const DB = {
     if (!supabase) return [];
     const { data, error } = await supabase.from('sales').select('*').order('date', { ascending: false });
     if (error) return [];
-    return data || [];
+    const salesList: Sale[] = data || [];
+    // ادغام اطلاعات فروشنده (sellerId, sellerName) از حافظه محلی
+    const salesMeta = DB.getStoredSalesMeta();
+    return salesList.map(s => {
+      const meta = salesMeta[s.id];
+      return {
+        ...s,
+        sellerId: s.sellerId || meta?.sellerId,
+        sellerName: s.sellerName || meta?.sellerName
+      };
+    });
   },
 
   addSale: async (sale: Sale) => {
+    // ذخیره مشخصات فروشنده در حافظه محلی
+    if (sale.sellerId || sale.sellerName) {
+      DB.setStoredSaleMeta(sale.id, {
+        sellerId: sale.sellerId,
+        sellerName: sale.sellerName
+      });
+    }
+
     if (!supabase) return;
     const salePayload: any = {
       id: sale.id,
@@ -149,6 +267,15 @@ export const DB = {
   },
 
   deleteSale: async (id: string) => {
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        const salesMeta = DB.getStoredSalesMeta();
+        delete salesMeta[id];
+        localStorage.setItem(SALES_META_KEY, JSON.stringify(salesMeta));
+      }
+    } catch {
+      // ignore
+    }
     if (!supabase) return;
     await supabase.from('sales').delete().eq('id', id);
   },

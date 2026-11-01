@@ -146,7 +146,7 @@ const ReportsManager: React.FC<Props> = ({ products, sales, expenses, users }) =
   const currentCommissionsTotal = useMemo(() => {
     return currentSales.reduce((sum, s) => {
       const seller = users.find(u => u.id === s.sellerId || u.fullName === s.sellerName);
-      const rate = seller?.commissionRate ?? 5;
+      const rate = typeof seller?.commissionRate === 'number' ? seller.commissionRate : 5;
       return sum + Math.round(s.totalAmount * (rate / 100));
     }, 0);
   }, [currentSales, users]);
@@ -290,7 +290,7 @@ const ReportsManager: React.FC<Props> = ({ products, sales, expenses, users }) =
       const revenue = uSales.reduce((acc, s) => acc + s.totalAmount, 0);
       const profit = uSales.reduce((acc, s) => acc + s.profit, 0);
       const count = uSales.length;
-      const rate = u.commissionRate ?? 5;
+      const rate = typeof u.commissionRate === 'number' ? u.commissionRate : 5;
       const commission = Math.round(revenue * (rate / 100));
       const share = currentRevenue > 0 ? (revenue / currentRevenue) * 100 : 0;
 
@@ -755,7 +755,9 @@ const ReportsManager: React.FC<Props> = ({ products, sales, expenses, users }) =
                   </div>
 
                   <div className="flex items-center justify-between text-xs pt-1 border-t border-slate-100/80 mt-2">
-                    <span className="text-slate-500 font-bold text-[11px]">پورسانت متعلقه دوره:</span>
+                    <span className="text-slate-500 font-bold text-[11px]">
+                      پورسانت متعلقه دوره ({rate}٪):
+                    </span>
                     <span className="text-emerald-600 font-black text-xs">{formatPrice(commission)}</span>
                   </div>
                 </div>

@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { 
   TrendingUp, 
   TrendingDown, 
@@ -16,9 +16,11 @@ import {
   FileText, 
   Printer, 
   Sparkles,
-  ChevronLeft
+  ChevronLeft,
+  CheckCircle2
 } from 'lucide-react';
 import { Product, Sale, Expense, User } from '../types';
+import { DB } from '../services/db';
 import { 
   AreaChart, 
   Area, 
@@ -34,23 +36,52 @@ interface Props {
   sales: Sale[];
   expenses: Expense[];
   users: User[];
+  setUsers?: React.Dispatch<React.SetStateAction<User[]>>;
 }
 
 const formatPrice = (price: number) => {
   return new Intl.NumberFormat('fa-IR').format(price) + ' تومان';
 };
 
-const Dashboard: React.FC<Props> = ({ products, sales, expenses, users }) => {
+const Dashboard: React.FC<Props> = ({ products, sales, expenses, users, setUsers }) => {
   // درصد پورسانت همگانی پیش‌فرض
   const [globalRateInput, setGlobalRateInput] = useState<number>(5);
   // درصد پورسانت سفارشی به ازای هر کاربر
-  const [commissionRates, setCommissionRates] = useState<Record<string, number>>({});
+  const [commissionRates, setCommissionRates] = useState<Record<string, number>>(() => {
+    const initial: Record<string, number> = {};
+    users.forEach(u => {
+      initial[u.id] = typeof u.commissionRate === 'number' ? u.commissionRate : 5;
+    });
+    return initial;
+  });
   // جستجو در لیست فروشندگان
   const [searchTerm, setSearchTerm] = useState('');
   // فیلتر نقش کاربر
   const [roleFilter, setRoleFilter] = useState<'ALL' | 'SALESPERSON' | 'ADMIN'>('ALL');
   // کاربر انتخاب شده برای مشاهده جزئیات فاکتورها
   const [selectedUserInvoices, setSelectedUserInvoices] = useState<User | null>(null);
+  // اعلان پیام موفقیت
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => {
+      setToastMessage(null);
+    }, 3000);
+  };
+
+  // همگام‌سازی درصد پورسانت با لیست کاربران دریافتی
+  useEffect(() => {
+    setCommissionRates(prev => {
+      const updated = { ...prev };
+      users.forEach(u => {
+        if (typeof u.commissionRate === 'number' && updated[u.id] !== u.commissionRate) {
+          updated[u.id] = u.commissionRate;
+        }
+      });
+      return updated;
+    });
+  }, [users]);
 
   const stats = useMemo(() => {
     const totalSales = sales.reduce((acc, s) => acc + s.totalAmount, 0);
@@ -64,7 +95,7 @@ const Dashboard: React.FC<Props> = ({ products, sales, expenses, users }) => {
 
   const lowStockItems = products.filter(p => p.stock <= p.reorderPoint);
 
-  // اعمال یک درصد پورسانت همگانی روی همه کاربران
+  // اعمال یک درصد پورسانت همگانی روی همه کاربران و ذخیره دائمی
   const handleApplyGlobalRate = () => {
     const validRate = Math.max(0, Math.min(100, globalRateInput));
     const newRates: Record<string, number> = {};
@@ -72,6 +103,12 @@ const Dashboard: React.FC<Props> = ({ products, sales, expenses, users }) => {
       newRates[u.id] = validRate;
     });
     setCommissionRates(newRates);
+    DB.setStoredCommissionsBulk(newRates);
+
+    if (setUsers) {
+      setUsers(prev => prev.map(u => ({ ...u, commissionRate: validRate })));
+    }
+    showToast(`پورسانت همگانی (${validRate}٪) برای تمام فروشندگان با موفقیت ثبت و ذخیره شد.`);
   };
 
   // محاسبه آمار هر فروشنده
@@ -87,7 +124,9 @@ const Dashboard: React.FC<Props> = ({ products, sales, expenses, users }) => {
       const totalAmount = userSales.reduce((sum, s) => sum + s.totalAmount, 0);
       const totalProfit = userSales.reduce((sum, s) => sum + s.profit, 0);
       // درصد پورسانت اولویت: تغییر دستی زنده > پورسانت پروفایل کاربر > ۵٪
-      const rate = commissionRates[user.id] ?? user.commissionRate ?? 5;
+      const rate = commissionRates[user.id] !== undefined
+        ? commissionRates[user.id]
+        : (typeof user.commissionRate === 'number' ? user.commissionRate : 5);
       const commissionAmount = Math.round(totalAmount * (rate / 100));
       const sharePercentage = stats.totalSales > 0 ? (totalAmount / stats.totalSales) * 100 : 0;
 
@@ -119,10 +158,17 @@ const Dashboard: React.FC<Props> = ({ products, sales, expenses, users }) => {
     return sellersData.reduce((sum, item) => sum + item.commissionAmount, 0);
   }, [sellersData]);
 
-  // تغییر درصد پورسانت یک فروشنده
-  const handleRateChange = (userId: string, newRate: number) => {
+  // تغییر درصد پورسانت یک فروشنده و ذخیره دائمی
+  const handleRateChange = async (userId: string, newRate: number) => {
     const validRate = Math.max(0, Math.min(100, newRate));
     setCommissionRates(prev => ({ ...prev, [userId]: validRate }));
+    await DB.saveUserCommission(userId, validRate);
+
+    if (setUsers) {
+      setUsers(prev => prev.map(u => u.id === userId ? { ...u, commissionRate: validRate } : u));
+    }
+    const targetUser = users.find(u => u.id === userId);
+    showToast(`درصد پورسانت "${targetUser?.fullName || 'کاربر'}" به ${validRate}٪ تغییر یافت و ذخیره شد.`);
   };
 
   // اطلاعات فاکتورهای کاربر انتخابی برای مودال
@@ -133,6 +179,13 @@ const Dashboard: React.FC<Props> = ({ products, sales, expenses, users }) => {
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
+      {/* اعلان‌های ذخیره پورسانت */}
+      {toastMessage && (
+        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[200] bg-slate-900 text-white px-6 py-3.5 rounded-2xl shadow-2xl flex items-center gap-3 animate-in fade-in slide-in-from-top-4 duration-300 border border-slate-700 text-sm font-bold">
+          <CheckCircle2 size={20} className="text-emerald-400" />
+          <span>{toastMessage}</span>
+        </div>
+      )}
       {/* Stat Cards اصلی */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatCard 

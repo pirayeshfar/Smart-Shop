@@ -77,20 +77,25 @@ const UserManager: React.FC<Props> = ({ users, setUsers }) => {
   // ایجاد کاربر جدید
   const handleAddSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const parsedRate = typeof addFormData.commissionRate === 'number'
+      ? addFormData.commissionRate
+      : parseFloat(String(addFormData.commissionRate ?? ''));
+    const validRate = !isNaN(parsedRate) ? Math.max(0, Math.min(100, parsedRate)) : 5;
+
     const newUser: User = { 
       id: Date.now().toString(),
       username: addFormData.username || '',
       password: addFormData.password || '',
       fullName: addFormData.fullName || '',
       role: (addFormData.role as Role) || 'SALESPERSON',
-      commissionRate: Number(addFormData.commissionRate) || 5
+      commissionRate: validRate
     };
 
     await DB.saveUser(newUser);
     setUsers(prev => [...prev.filter(u => u.id !== 'admin-id'), newUser]);
     setIsAddModalOpen(false);
     setAddFormData({ username: '', password: '', fullName: '', role: 'SALESPERSON', commissionRate: 5 });
-    showToast(`حساب کاربری ${newUser.fullName} با موفقیت ایجاد شد.`);
+    showToast(`حساب کاربری ${newUser.fullName} با پورسانت ${validRate}٪ با موفقیت ایجاد شد.`);
   };
 
   // باز کردن مودال ویرایش کاربر
@@ -101,15 +106,20 @@ const UserManager: React.FC<Props> = ({ users, setUsers }) => {
       password: user.password,
       fullName: user.fullName,
       role: user.role,
-      commissionRate: user.commissionRate ?? 5
+      commissionRate: typeof user.commissionRate === 'number' ? user.commissionRate : 5
     });
     setShowPassword(false);
   };
 
-  // ذخیره تغییرات ویرایش کاربر (شامل تغییر/بازیابی رمز عبور)
+  // ذخیره تغییرات ویرایش کاربر (شامل تغییر/بازیابی رمز عبور و درصد پورسانت)
   const handleEditSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingUser) return;
+
+    const parsedRate = typeof editFormData.commissionRate === 'number'
+      ? editFormData.commissionRate
+      : parseFloat(String(editFormData.commissionRate ?? ''));
+    const validRate = !isNaN(parsedRate) ? Math.max(0, Math.min(100, parsedRate)) : (editingUser.commissionRate ?? 5);
 
     const updatedUser: User = {
       ...editingUser,
@@ -117,7 +127,7 @@ const UserManager: React.FC<Props> = ({ users, setUsers }) => {
       username: editFormData.username || editingUser.username,
       password: editFormData.password || editingUser.password,
       role: (editFormData.role as Role) || editingUser.role,
-      commissionRate: Number(editFormData.commissionRate) ?? editingUser.commissionRate ?? 5
+      commissionRate: validRate
     };
 
     await DB.saveUser(updatedUser);
@@ -132,7 +142,7 @@ const UserManager: React.FC<Props> = ({ users, setUsers }) => {
     });
 
     setEditingUser(null);
-    showToast(`اطلاعات و رمز عبور کاربر "${updatedUser.fullName}" با موفقیت بروزرسانی شد.`);
+    showToast(`اطلاعات، رمز عبور و پورسانت (${validRate}٪) کاربر "${updatedUser.fullName}" با موفقیت بروزرسانی شد.`);
   };
 
   // حذف کاربر
@@ -150,11 +160,12 @@ const UserManager: React.FC<Props> = ({ users, setUsers }) => {
 
   // ویرایش سریع درصد پورسانت روی کارت
   const handleQuickUpdateCommission = async (user: User) => {
-    const updatedUser = { ...user, commissionRate: quickEditRate };
+    const validRate = Math.max(0, Math.min(100, quickEditRate));
+    const updatedUser = { ...user, commissionRate: validRate };
     await DB.saveUser(updatedUser);
     setUsers(prev => prev.map(u => u.id === user.id ? updatedUser : u));
     setQuickEditUserId(null);
-    showToast(`درصد پورسانت ${user.fullName} به ${quickEditRate}٪ تغییر یافت.`);
+    showToast(`درصد پورسانت "${user.fullName}" به ${validRate}٪ تغییر یافت و ذخیره شد.`);
   };
 
   return (
