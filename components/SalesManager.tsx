@@ -28,7 +28,8 @@ import {
   RefreshCw,
   SlidersHorizontal,
   UserCheck,
-  Filter
+  Filter,
+  CheckCircle2
 } from 'lucide-react';
 import { Product, Sale, User } from '../types';
 import { DB } from '../services/db';
@@ -62,6 +63,11 @@ const SalesManager: React.FC<Props> = ({ products, setProducts, sales, setSales,
 
   // فیلتر فروشنده برای مدیر
   const [sellerFilter, setSellerFilter] = useState<'ALL' | 'UNASSIGNED' | string>('ALL');
+
+  // انتخاب دسته‌ای فاکتورها برای انتساب گروهی به فروشنده
+  const [selectedSaleIds, setSelectedSaleIds] = useState<string[]>([]);
+  const [bulkTargetUserId, setBulkTargetUserId] = useState<string>('');
+  const [isApplyingBulk, setIsApplyingBulk] = useState(false);
 
   // جستجو در جدول فاکتورها
   const [invoiceSearchQuery, setInvoiceSearchQuery] = useState('');
@@ -282,6 +288,60 @@ const SalesManager: React.FC<Props> = ({ products, setProducts, sales, setSales,
     } catch (err) {
       console.error(err);
       setNotification({ message: 'خطا در انتساب فاکتور به فروشنده!', type: 'error' });
+    }
+  };
+
+  // انتخاب یا لغو انتخاب همه فاکتورهای فیلترشده
+  const handleToggleSelectAll = () => {
+    if (selectedSaleIds.length === filteredVisibleSales.length && filteredVisibleSales.length > 0) {
+      setSelectedSaleIds([]);
+    } else {
+      setSelectedSaleIds(filteredVisibleSales.map(s => s.id));
+    }
+  };
+
+  // انتخاب یا لغو انتخاب یک فاکتور
+  const handleToggleSelectSale = (id: string) => {
+    setSelectedSaleIds(prev => 
+      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+    );
+  };
+
+  // اعمال انتساب گروهی فاکتورها به فروشنده انتخابی
+  const handleApplyBulkAssign = async () => {
+    if (!bulkTargetUserId || selectedSaleIds.length === 0 || isApplyingBulk) return;
+    setIsApplyingBulk(true);
+    try {
+      const targetUser = users.find(u => u.id === bulkTargetUserId);
+      const isManager = !targetUser || bulkTargetUserId === 'admin-id' || targetUser.role === 'ADMIN';
+      const sellerId = isManager ? 'admin-id' : targetUser.id;
+      const sellerName = isManager ? 'مدیر سیستم' : targetUser.fullName;
+
+      const bulkEntries: Record<string, { sellerId: string; sellerName: string }> = {};
+      selectedSaleIds.forEach(id => {
+        bulkEntries[id] = { sellerId, sellerName };
+      });
+
+      await DB.setStoredSalesMetaBulk(bulkEntries);
+
+      setSales(prev => prev.map(s => {
+        if (selectedSaleIds.includes(s.id)) {
+          return { ...s, sellerId, sellerName };
+        }
+        return s;
+      }));
+
+      setNotification({
+        message: `تعداد ${selectedSaleIds.length} فاکتور با موفقیت به «${sellerName}» منتسب گردید و در پورسانت و حقوق ثبت شد.`,
+        type: 'success'
+      });
+      setSelectedSaleIds([]);
+      setBulkTargetUserId('');
+    } catch (e) {
+      console.error(e);
+      setNotification({ message: 'خطا در اعمال انتساب گروهی!', type: 'error' });
+    } finally {
+      setIsApplyingBulk(false);
     }
   };
 
@@ -1006,11 +1066,67 @@ const SalesManager: React.FC<Props> = ({ products, setProducts, sales, setSales,
                 </div>
               </div>
 
+              {/* نوار عملیات انتساب گروهی برای مدیر */}
+              {isAdmin && selectedSaleIds.length > 0 && (
+                <div className="p-4 bg-indigo-50 border-b border-indigo-100 flex flex-col sm:flex-row items-center justify-between gap-3 animate-in fade-in slide-in-from-top-1 duration-200">
+                  <div className="flex items-center gap-2 text-xs font-black text-indigo-900">
+                    <CheckCircle2 size={18} className="text-indigo-600" />
+                    <span>تعداد {selectedSaleIds.length} فاکتور انتخاب شده است</span>
+                  </div>
+
+                  <div className="flex items-center gap-2.5 flex-wrap">
+                    <span className="text-xs font-bold text-slate-600">انتساب همه به:</span>
+                    <select
+                      value={bulkTargetUserId}
+                      onChange={e => setBulkTargetUserId(e.target.value)}
+                      className="px-3 py-2 bg-white border border-indigo-200 rounded-xl text-xs font-bold outline-none focus:border-indigo-500 shadow-xs cursor-pointer"
+                    >
+                      <option value="">-- انتخاب فروشنده --</option>
+                      <option value="admin-id">مدیر سیستم (دفتر مرکزی)</option>
+                      {users.map(u => (
+                        <option key={u.id} value={u.id}>
+                          {u.role === 'ADMIN' ? 'مدیر: ' : 'فروشنده: '} {u.fullName}
+                        </option>
+                      ))}
+                    </select>
+
+                    <button
+                      type="button"
+                      disabled={!bulkTargetUserId || isApplyingBulk}
+                      onClick={handleApplyBulkAssign}
+                      className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-xl text-xs font-black transition-all flex items-center gap-1.5 shadow-sm shadow-indigo-600/20"
+                    >
+                      {isApplyingBulk ? <RefreshCw size={13} className="animate-spin" /> : <UserCheck size={13} />}
+                      <span>اعمال انتساب گروهی</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setSelectedSaleIds([])}
+                      className="px-3 py-2 bg-white hover:bg-slate-100 text-slate-600 rounded-xl text-xs font-bold transition-all border border-slate-200"
+                    >
+                      لغو انتخاب
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {/* جدول داده‌های فاکتورها */}
               <div className="overflow-x-auto">
                 <table className="w-full text-right border-collapse">
                   <thead>
                     <tr className="bg-slate-50 text-slate-400 text-xs uppercase font-black border-b border-slate-100">
+                      {isAdmin && (
+                        <th className="w-12 px-4 py-4 text-center">
+                          <input 
+                            type="checkbox"
+                            checked={selectedSaleIds.length > 0 && selectedSaleIds.length === filteredVisibleSales.length}
+                            onChange={handleToggleSelectAll}
+                            className="w-4 h-4 rounded text-indigo-600 border-slate-300 focus:ring-indigo-500 cursor-pointer"
+                            title="انتخاب همه فاکتورهای فیلترشده"
+                          />
+                        </th>
+                      )}
                       <th className="px-6 py-4">کد فاکتور / تاریخ</th>
                       <th className="px-6 py-4">عنوان محصول</th>
                       <th className="px-6 py-4 text-center">تعداد</th>
@@ -1022,7 +1138,7 @@ const SalesManager: React.FC<Props> = ({ products, setProducts, sales, setSales,
                   <tbody className="divide-y divide-slate-100 text-sm">
                     {filteredVisibleSales.length === 0 ? (
                       <tr>
-                        <td colSpan={6} className="text-center py-16 text-slate-400 font-bold text-xs space-y-2">
+                        <td colSpan={isAdmin ? 7 : 6} className="text-center py-16 text-slate-400 font-bold text-xs space-y-2">
                           <ReceiptText size={40} className="mx-auto opacity-25" />
                           <p>
                             {visibleSales.length === 0 
@@ -1033,7 +1149,17 @@ const SalesManager: React.FC<Props> = ({ products, setProducts, sales, setSales,
                       </tr>
                     ) : (
                       filteredVisibleSales.map(sale => (
-                        <tr key={sale.id} className="hover:bg-slate-50 transition-colors">
+                        <tr key={sale.id} className={`hover:bg-slate-50 transition-colors ${selectedSaleIds.includes(sale.id) ? 'bg-indigo-50/40' : ''}`}>
+                          {isAdmin && (
+                            <td className="w-12 px-4 py-4 text-center">
+                              <input 
+                                type="checkbox"
+                                checked={selectedSaleIds.includes(sale.id)}
+                                onChange={() => handleToggleSelectSale(sale.id)}
+                                className="w-4 h-4 rounded text-indigo-600 border-slate-300 focus:ring-indigo-500 cursor-pointer"
+                              />
+                            </td>
+                          )}
                           {/* کد فاکتور و تاریخ */}
                           <td className="px-6 py-4">
                             <span className="font-mono text-xs font-black text-indigo-600 block">
