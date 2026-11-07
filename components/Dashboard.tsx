@@ -114,10 +114,14 @@ const Dashboard: React.FC<Props> = ({ products, sales, expenses, users, setUsers
   // محاسبه آمار هر فروشنده
   const sellersData = useMemo(() => {
     return users.map(user => {
-      // جستجوی فاکتورهای مربوط به این کاربر بر اساس شناسه یا نام
       const userSales = sales.filter(s => 
-        (s.sellerId && s.sellerId === user.id) || 
-        (s.sellerName && (s.sellerName === user.fullName || s.sellerName === user.username))
+        (s.sellerId && (s.sellerId === user.id || s.sellerId === user.username)) || 
+        (s.sellerName && (
+          s.sellerName.trim() === user.fullName.trim() || 
+          s.sellerName.trim() === user.username.trim() ||
+          s.sellerName.includes(user.fullName.trim()) ||
+          user.fullName.includes(s.sellerName.trim())
+        ))
       );
 
       const salesCount = userSales.length;

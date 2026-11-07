@@ -15,11 +15,13 @@ try {
 
 const COMMISSIONS_KEY = 'smart_shop_user_commissions';
 const SALES_META_KEY = 'smart_shop_sales_meta';
+const SYS_SALES_META_ID = '__SYS_SALES_META__';
+const SYS_COMMISSIONS_ID = '__SYS_COMMISSIONS__';
 
 export const DB = {
   isConnected: () => !!supabase,
 
-  // مدیریت حافظه محلی برای پورسانت‌ها و متادیتا
+  // مدیریت حافظه محلی و ابری برای پورسانت‌ها
   getStoredCommissions: (): Record<string, number> => {
     try {
       if (typeof window !== 'undefined' && window.localStorage) {
@@ -32,29 +34,66 @@ export const DB = {
     return {};
   },
 
-  setStoredCommission: (userId: string, rate: number) => {
+  fetchCloudCommissions: async (): Promise<Record<string, number>> => {
+    let cloudRates: Record<string, number> = {};
+    if (supabase) {
+      try {
+        const { data } = await supabase.from('expenses').select('description').eq('id', SYS_COMMISSIONS_ID).single();
+        if (data && data.description) {
+          cloudRates = JSON.parse(data.description);
+        }
+      } catch {
+        // ignore
+      }
+    }
+    const local = DB.getStoredCommissions();
+    const merged = { ...local, ...cloudRates };
+    if (typeof window !== 'undefined' && window.localStorage) {
+      localStorage.setItem(COMMISSIONS_KEY, JSON.stringify(merged));
+    }
+    return merged;
+  },
+
+  setStoredCommission: async (userId: string, rate: number) => {
     try {
+      const rates = DB.getStoredCommissions();
+      rates[userId] = rate;
       if (typeof window !== 'undefined' && window.localStorage) {
-        const rates = DB.getStoredCommissions();
-        rates[userId] = rate;
         localStorage.setItem(COMMISSIONS_KEY, JSON.stringify(rates));
       }
+      if (supabase) {
+        await supabase.from('expenses').upsert({
+          id: SYS_COMMISSIONS_ID,
+          date: new Date().toISOString(),
+          description: JSON.stringify(rates),
+          amount: 0
+        });
+      }
     } catch (e) {
-      console.warn('خطا در ذخیره درصد پورسانت در حافظه محلی:', e);
+      console.warn('خطا در ذخیره درصد پورسانت:', e);
     }
   },
 
-  setStoredCommissionsBulk: (newRates: Record<string, number>) => {
+  setStoredCommissionsBulk: async (newRates: Record<string, number>) => {
     try {
+      const rates = { ...DB.getStoredCommissions(), ...newRates };
       if (typeof window !== 'undefined' && window.localStorage) {
-        const rates = { ...DB.getStoredCommissions(), ...newRates };
         localStorage.setItem(COMMISSIONS_KEY, JSON.stringify(rates));
+      }
+      if (supabase) {
+        await supabase.from('expenses').upsert({
+          id: SYS_COMMISSIONS_ID,
+          date: new Date().toISOString(),
+          description: JSON.stringify(rates),
+          amount: 0
+        });
       }
     } catch (e) {
       console.warn('خطا در ذخیره یکجای پورسانت‌ها:', e);
     }
   },
 
+  // متادیتاهای صادرکننده فاکتورها (همگام‌سازی ابری و محلی)
   getStoredSalesMeta: (): Record<string, { sellerId?: string; sellerName?: string }> => {
     try {
       if (typeof window !== 'undefined' && window.localStorage) {
@@ -67,15 +106,62 @@ export const DB = {
     return {};
   },
 
-  setStoredSaleMeta: (saleId: string, meta: { sellerId?: string; sellerName?: string }) => {
+  fetchCloudSalesMeta: async (): Promise<Record<string, { sellerId?: string; sellerName?: string }>> => {
+    let cloudMeta: Record<string, { sellerId?: string; sellerName?: string }> = {};
+    if (supabase) {
+      try {
+        const { data } = await supabase.from('expenses').select('description').eq('id', SYS_SALES_META_ID).single();
+        if (data && data.description) {
+          cloudMeta = JSON.parse(data.description);
+        }
+      } catch {
+        // ignore
+      }
+    }
+    const local = DB.getStoredSalesMeta();
+    const merged = { ...local, ...cloudMeta };
+    if (typeof window !== 'undefined' && window.localStorage) {
+      localStorage.setItem(SALES_META_KEY, JSON.stringify(merged));
+    }
+    return merged;
+  },
+
+  setStoredSaleMeta: async (saleId: string, meta: { sellerId?: string; sellerName?: string }) => {
     try {
+      const allMeta = DB.getStoredSalesMeta();
+      allMeta[saleId] = meta;
       if (typeof window !== 'undefined' && window.localStorage) {
-        const allMeta = DB.getStoredSalesMeta();
-        allMeta[saleId] = meta;
         localStorage.setItem(SALES_META_KEY, JSON.stringify(allMeta));
+      }
+      if (supabase) {
+        await supabase.from('expenses').upsert({
+          id: SYS_SALES_META_ID,
+          date: new Date().toISOString(),
+          description: JSON.stringify(allMeta),
+          amount: 0
+        });
       }
     } catch (e) {
       console.warn('خطا در ذخیره مشخصات فروشنده فاکتور:', e);
+    }
+  },
+
+  setStoredSalesMetaBulk: async (newEntries: Record<string, { sellerId?: string; sellerName?: string }>) => {
+    try {
+      const allMeta = { ...DB.getStoredSalesMeta(), ...newEntries };
+      if (typeof window !== 'undefined' && window.localStorage) {
+        localStorage.setItem(SALES_META_KEY, JSON.stringify(allMeta));
+      }
+      if (supabase) {
+        await supabase.from('expenses').upsert({
+          id: SYS_SALES_META_ID,
+          date: new Date().toISOString(),
+          description: JSON.stringify(allMeta),
+          amount: 0
+        });
+      }
+    } catch (e) {
+      console.warn('خطا در ذخیره دسته‌ای مشخصات فروشندگان:', e);
     }
   },
 
@@ -87,8 +173,8 @@ export const DB = {
         usersList = data;
       }
     }
-    // ادغام درصد پورسانت‌های ذخیره شده با داده‌های کاربران
-    const savedRates = DB.getStoredCommissions();
+    // ادغام درصد پورسانت‌های ذخیره شده ابری با داده‌های کاربران
+    const savedRates = await DB.fetchCloudCommissions();
     return usersList.map(u => ({
       ...u,
       commissionRate: savedRates[u.id] !== undefined 
@@ -209,22 +295,44 @@ export const DB = {
     const { data, error } = await supabase.from('sales').select('*').order('date', { ascending: false });
     if (error) return [];
     const salesList: Sale[] = data || [];
-    // ادغام اطلاعات فروشنده (sellerId, sellerName) از حافظه محلی
-    const salesMeta = DB.getStoredSalesMeta();
+    
+    // دریافت اطلاعات فروشنده (sellerId, sellerName) هم از کلاد و هم از حافظه محلی
+    const salesMeta = await DB.fetchCloudSalesMeta();
+
     return salesList.map(s => {
+      // ۱. اگر فروشنده در آی‌دی فاکتور کدگذاری شده باشد
+      let encodedSellerId: string | undefined;
+      let encodedSellerName: string | undefined;
+      if (s.id && s.id.includes('__s_')) {
+        const parts = s.id.split('__');
+        for (const p of parts) {
+          if (p.startsWith('s_')) encodedSellerId = p.slice(2);
+          if (p.startsWith('n_')) {
+            try {
+              encodedSellerName = decodeURIComponent(p.slice(2));
+            } catch {
+              encodedSellerName = p.slice(2);
+            }
+          }
+        }
+      }
+
       const meta = salesMeta[s.id];
+      const sellerId = encodedSellerId || s.sellerId || meta?.sellerId;
+      const sellerName = encodedSellerName || s.sellerName || meta?.sellerName;
+
       return {
         ...s,
-        sellerId: s.sellerId || meta?.sellerId || 'admin-id',
-        sellerName: s.sellerName || meta?.sellerName || 'مدیر سیستم'
+        sellerId: sellerId || undefined,
+        sellerName: sellerName || undefined
       };
     });
   },
 
   addSale: async (sale: Sale) => {
-    // ذخیره مشخصات فروشنده در حافظه محلی
+    // ذخیره مشخصات فروشنده در حافظه کلاد و محلی
     if (sale.sellerId || sale.sellerName) {
-      DB.setStoredSaleMeta(sale.id, {
+      await DB.setStoredSaleMeta(sale.id, {
         sellerId: sale.sellerId,
         sellerName: sale.sellerName
       });
@@ -267,9 +375,9 @@ export const DB = {
   },
 
   updateSale: async (sale: Sale) => {
-    // بروزرسانی مشخصات فروشنده در حافظه محلی
+    // بروزرسانی مشخصات فروشنده در حافظه کلاد و محلی
     if (sale.sellerId || sale.sellerName) {
-      DB.setStoredSaleMeta(sale.id, {
+      await DB.setStoredSaleMeta(sale.id, {
         sellerId: sale.sellerId,
         sellerName: sale.sellerName
       });
@@ -311,10 +419,18 @@ export const DB = {
 
   deleteSale: async (id: string) => {
     try {
+      const salesMeta = DB.getStoredSalesMeta();
+      delete salesMeta[id];
       if (typeof window !== 'undefined' && window.localStorage) {
-        const salesMeta = DB.getStoredSalesMeta();
-        delete salesMeta[id];
         localStorage.setItem(SALES_META_KEY, JSON.stringify(salesMeta));
+      }
+      if (supabase) {
+        await supabase.from('expenses').upsert({
+          id: SYS_SALES_META_ID,
+          date: new Date().toISOString(),
+          description: JSON.stringify(salesMeta),
+          amount: 0
+        });
       }
     } catch {
       // ignore
@@ -327,7 +443,8 @@ export const DB = {
     if (!supabase) return [];
     const { data, error } = await supabase.from('expenses').select('*').order('date', { ascending: false });
     if (error) return [];
-    return data || [];
+    const list: Expense[] = data || [];
+    return list.filter(e => !e.id.startsWith('__SYS_'));
   },
 
   addExpense: async (expense: Expense) => {

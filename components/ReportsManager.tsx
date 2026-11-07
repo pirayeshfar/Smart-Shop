@@ -145,7 +145,14 @@ const ReportsManager: React.FC<Props> = ({ products, sales, expenses, users }) =
   // پورسانت محاسبه شده در این دوره
   const currentCommissionsTotal = useMemo(() => {
     return currentSales.reduce((sum, s) => {
-      const seller = users.find(u => u.id === s.sellerId || u.fullName === s.sellerName);
+      const seller = users.find(u => 
+        u.id === s.sellerId || 
+        (s.sellerName && (
+          u.fullName.trim() === s.sellerName.trim() ||
+          u.fullName.includes(s.sellerName.trim()) ||
+          s.sellerName.includes(u.fullName.trim())
+        ))
+      );
       const rate = typeof seller?.commissionRate === 'number' ? seller.commissionRate : 5;
       return sum + Math.round(s.totalAmount * (rate / 100));
     }, 0);
@@ -284,7 +291,11 @@ const ReportsManager: React.FC<Props> = ({ products, sales, expenses, users }) =
     return users.map(u => {
       const uSales = currentSales.filter(s => 
         s.sellerId === u.id || 
-        (s.sellerName && s.sellerName === u.fullName)
+        (s.sellerName && (
+          s.sellerName.trim() === u.fullName.trim() ||
+          s.sellerName.includes(u.fullName.trim()) ||
+          u.fullName.includes(s.sellerName.trim())
+        ))
       );
 
       const revenue = uSales.reduce((acc, s) => acc + s.totalAmount, 0);

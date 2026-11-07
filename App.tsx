@@ -26,8 +26,31 @@ import UserManager from './components/UserManager';
 import Login from './components/Login';
 
 const App: React.FC = () => {
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [currentView, setCurrentView] = useState<View>(View.DASHBOARD);
+  const [currentUser, setCurrentUser] = useState<User | null>(() => {
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        const saved = localStorage.getItem('smart_shop_auth_user');
+        if (saved) return JSON.parse(saved);
+      }
+    } catch {
+      // ignore
+    }
+    return null;
+  });
+  const [currentView, setCurrentView] = useState<View>(() => {
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        const savedUser = localStorage.getItem('smart_shop_auth_user');
+        if (savedUser) {
+          const parsed = JSON.parse(savedUser);
+          if (parsed.role === 'SALESPERSON') return View.SALES;
+        }
+      }
+    } catch {
+      // ignore
+    }
+    return View.DASHBOARD;
+  });
   const [sidebarOpen, setSidebarOpen] = useState(false);
   
   const [products, setProducts] = useState<Product[]>([]);
@@ -71,6 +94,13 @@ const App: React.FC = () => {
   const toggleSidebar = () => setSidebarOpen(prev => !prev);
 
   const handleLogout = () => {
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        localStorage.removeItem('smart_shop_auth_user');
+      }
+    } catch {
+      // ignore
+    }
     setCurrentUser(null);
     setCurrentView(View.DASHBOARD);
   };
@@ -87,8 +117,15 @@ const App: React.FC = () => {
 
   if (!currentUser) {
     return <Login users={users} onLogin={(user) => {
+      try {
+        if (typeof window !== 'undefined' && window.localStorage) {
+          localStorage.setItem('smart_shop_auth_user', JSON.stringify(user));
+        }
+      } catch {
+        // ignore
+      }
       setCurrentUser(user);
-      if (user.role === 'SALESPERSON') setCurrentView(View.PRODUCTS);
+      if (user.role === 'SALESPERSON') setCurrentView(View.SALES);
     }} />;
   }
 

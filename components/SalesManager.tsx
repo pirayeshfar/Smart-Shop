@@ -26,7 +26,9 @@ import {
   Layers,
   ArrowRight,
   RefreshCw,
-  SlidersHorizontal
+  SlidersHorizontal,
+  UserCheck,
+  Filter
 } from 'lucide-react';
 import { Product, Sale, User } from '../types';
 import { DB } from '../services/db';
@@ -58,6 +60,9 @@ const SalesManager: React.FC<Props> = ({ products, setProducts, sales, setSales,
   // تب فعال در حالت نمایش (کامل، فقط صدور، یا فقط فاکتورها)
   const [activeTab, setActiveTab] = useState<'both' | 'form' | 'invoices'>('both');
 
+  // فیلتر فروشنده برای مدیر
+  const [sellerFilter, setSellerFilter] = useState<'ALL' | 'UNASSIGNED' | string>('ALL');
+
   // جستجو در جدول فاکتورها
   const [invoiceSearchQuery, setInvoiceSearchQuery] = useState('');
 
@@ -81,6 +86,13 @@ const SalesManager: React.FC<Props> = ({ products, setProducts, sales, setSales,
   const selectedProduct = products.find(p => p.id === selectedProductId);
   const isAdmin = !currentUser || currentUser.role === 'ADMIN';
 
+  // فرمت‌بندی کد نمایش فاکتور (استخراج از شناسه کدگذاری‌شده)
+  const getCleanInvoiceCode = (id: string) => {
+    if (!id) return '#---';
+    const base = id.split('__')[0].split('@')[0];
+    return '#' + base.slice(-6);
+  };
+
   // بستن منوی جستجوی کالا با کلیک خارج
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -103,21 +115,33 @@ const SalesManager: React.FC<Props> = ({ products, setProducts, sales, setSales,
   // فیلتر فاکتورها بر اساس نقش کاربر (مدیر همه را می‌بیند، فروشنده فقط فاکتورهای خودش را)
   const visibleSales = useMemo(() => {
     if (isAdmin) {
-      return sales;
+      if (sellerFilter === 'ALL') return sales;
+      if (sellerFilter === 'UNASSIGNED') {
+        return sales.filter(s => !s.sellerName || s.sellerName.includes('مدیر') || s.sellerId === 'admin-id');
+      }
+      return sales.filter(s => 
+        (s.sellerId && s.sellerId === sellerFilter) ||
+        (s.sellerName && users.find(u => u.id === sellerFilter)?.fullName === s.sellerName)
+      );
     }
     return sales.filter(s => 
-      (s.sellerId && s.sellerId === currentUser?.id) ||
-      (s.sellerName && currentUser?.fullName && s.sellerName.trim() === currentUser.fullName.trim())
+      (s.sellerId && currentUser?.id && (s.sellerId === currentUser.id || s.sellerId === currentUser.username)) ||
+      (s.sellerName && currentUser?.fullName && (
+        s.sellerName.trim() === currentUser.fullName.trim() ||
+        s.sellerName.includes(currentUser.fullName.trim()) ||
+        currentUser.fullName.includes(s.sellerName.trim())
+      ))
     );
-  }, [sales, currentUser, isAdmin]);
+  }, [sales, currentUser, isAdmin, sellerFilter, users]);
 
-  // فیلتر جستجو در فاکتورها
+  // فیلتر متنی جستجو در فاکتورها
   const filteredVisibleSales = useMemo(() => {
     if (!invoiceSearchQuery.trim()) return visibleSales;
     const q = invoiceSearchQuery.toLowerCase().trim();
     return visibleSales.filter(s => 
       s.productName.toLowerCase().includes(q) ||
       s.id.toLowerCase().includes(q) ||
+      getCleanInvoiceCode(s.id).toLowerCase().includes(q) ||
       (s.sellerName && s.sellerName.toLowerCase().includes(q)) ||
       new Date(s.date).toLocaleDateString('fa-IR').includes(q)
     );
@@ -134,6 +158,11 @@ const SalesManager: React.FC<Props> = ({ products, setProducts, sales, setSales,
     if (isAdmin) return 0;
     return Math.round(totalVisibleAmount * (salespersonCommissionRate / 100));
   }, [totalVisibleAmount, salespersonCommissionRate, isAdmin]);
+
+  // تعداد فاکتورهای بدون انتساب به فروشنده خاص
+  const unassignedSalesCount = useMemo(() => {
+    return sales.filter(s => !s.sellerName || s.sellerName.includes('مدیر') || s.sellerId === 'admin-id').length;
+  }, [sales]);
 
   // فیلتر هوشمند محصولات بر اساس نام، کد، سایز و رنگ برای ثبت
   const filteredProducts = useMemo(() => {
@@ -175,11 +204,15 @@ const SalesManager: React.FC<Props> = ({ products, setProducts, sales, setSales,
 
     setIsProcessing(true);
 
-    const issuerName = currentUser?.fullName || (isAdmin ? 'مدیر سیستم' : 'فروشنده');
+    const issuerName = currentUser?.fullName || (isAdmin ? 'مدیر ارشد' : 'فروشنده');
     const issuerId = currentUser?.id || (isAdmin ? 'admin-id' : 'salesperson-id');
 
+    // ایجاد شناسه منحصر‌به‌فرد که اطلاعات فروشنده را درون خود کدگذاری می‌کند تا حتی با عدم وجود ستون در پایگاه داده، حفظ شود
+    const rawTimestamp = Date.now().toString();
+    const encodedSaleId = `${rawTimestamp}__s_${issuerId}__n_${encodeURIComponent(issuerName)}`;
+
     const newSale: Sale = {
-      id: Date.now().toString(),
+      id: encodedSaleId,
       date: new Date().toISOString(),
       productId: selectedProduct.id,
       productName: selectedProduct.name,
@@ -208,12 +241,47 @@ const SalesManager: React.FC<Props> = ({ products, setProducts, sales, setSales,
       setQuantity(1);
       setDiscountPercent(0);
       setTaxPercent(0);
-      setNotification({ message: 'فاکتور با موفقیت صادر شد و از موجودی انبار کسر گردید.', type: 'success' });
+      setNotification({ 
+        message: `فاکتور جدید به شماره ${getCleanInvoiceCode(newSale.id)} برای «${issuerName}» با موفقیت صادر و ثبت شد.`, 
+        type: 'success' 
+      });
+
+      // برای فروشندگان در حالت نمایش فقط صدور، تب فاکتورها را فعال می‌کنیم تا فاکتور ثبت شده را ببینند
+      if (!isAdmin && activeTab === 'form') {
+        setActiveTab('invoices');
+      }
     } catch (err) {
       console.error(err);
       setNotification({ message: 'خطا در ثبت نهایی فاکتور!', type: 'error' });
     } finally {
       setIsProcessing(false);
+    }
+  };
+
+  // انتساب یا تغییر سریع صادرکننده فاکتور توسط مدیر
+  const handleAssignSeller = async (sale: Sale, targetUserId: string) => {
+    const targetUser = users.find(u => u.id === targetUserId);
+    const isManager = !targetUser || targetUserId === 'admin-id' || targetUser.role === 'ADMIN';
+    const sellerId = isManager ? 'admin-id' : targetUser.id;
+    const sellerName = isManager ? 'مدیر سیستم' : targetUser.fullName;
+
+    const updatedSale: Sale = {
+      ...sale,
+      sellerId,
+      sellerName
+    };
+
+    try {
+      await DB.setStoredSaleMeta(sale.id, { sellerId, sellerName });
+      await DB.updateSale(updatedSale);
+      setSales(prev => prev.map(s => s.id === sale.id ? updatedSale : s));
+      setNotification({ 
+        message: `فاکتور ${getCleanInvoiceCode(sale.id)} به «${sellerName}» منتسب شد و در آمار و پورسانت او اعمال گردید.`, 
+        type: 'success' 
+      });
+    } catch (err) {
+      console.error(err);
+      setNotification({ message: 'خطا در انتساب فاکتور به فروشنده!', type: 'error' });
     }
   };
 
@@ -245,10 +313,8 @@ const SalesManager: React.FC<Props> = ({ products, setProducts, sales, setSales,
   const availableStockForEdit = useMemo(() => {
     if (!editCurrentProduct) return 0;
     if (isSameProduct) {
-      // کالای قبلی: موجودی فعلی بعلاوه تعداد فاکتور قبلی
       return editCurrentProduct.stock + originalQuantity;
     }
-    // کالای جدید: فقط موجودی فعلی خودش
     return editCurrentProduct.stock;
   }, [editCurrentProduct, isSameProduct, originalQuantity]);
 
@@ -289,7 +355,6 @@ const SalesManager: React.FC<Props> = ({ products, setProducts, sales, setSales,
       const updatedProductsList: Product[] = [...products];
 
       if (isSameProduct) {
-        // تغییر تعداد در همان کالا: delta = editQuantity - originalQuantity
         const delta = editQuantity - originalQuantity;
         const targetProd = updatedProductsList.find(p => p.id === editCurrentProduct.id);
         if (targetProd) {
@@ -297,7 +362,6 @@ const SalesManager: React.FC<Props> = ({ products, setProducts, sales, setSales,
           await DB.upsertProduct(targetProd);
         }
       } else {
-        // تغییر کالا: بازگشت تعداد کالای قبلی به انبار قبلی و کسر از کالای جدید
         const oldProd = updatedProductsList.find(p => p.id === editingSale.productId);
         if (oldProd) {
           oldProd.stock += originalQuantity;
@@ -313,7 +377,6 @@ const SalesManager: React.FC<Props> = ({ products, setProducts, sales, setSales,
 
       await DB.updateSale(updatedSale);
 
-      // بروزرسانی استیت‌ها
       setProducts([...updatedProductsList]);
       setSales(sales.map(s => s.id === updatedSale.id ? updatedSale : s));
 
@@ -359,25 +422,46 @@ const SalesManager: React.FC<Props> = ({ products, setProducts, sales, setSales,
     }
   };
 
-  // رندر برچسب صادرکننده فاکتور (هرگز «سیستمی» نمایش داده نمی‌شود)
+  // رندر برچسب صادرکننده فاکتور و انتخابگر سریع مدیر
   const renderIssuerBadge = (sale: Sale) => {
-    const name = sale.sellerName?.trim() || 'مدیر سیستم';
-    const isManager = name.includes('مدیر') || sale.sellerId === 'admin-id' || name === 'مدیر ارشد';
-
-    if (isManager) {
-      return (
-        <span className="inline-flex items-center gap-1.5 bg-amber-50 text-amber-800 border border-amber-200/80 px-2.5 py-1 rounded-xl text-xs font-bold shadow-xs">
-          <ShieldCheck size={13} className="text-amber-600" />
-          <span>{name}</span>
-        </span>
-      );
-    }
+    const name = sale.sellerName?.trim();
+    const isManager = !name || name.includes('مدیر') || sale.sellerId === 'admin-id' || name === 'مدیر ارشد';
 
     return (
-      <span className="inline-flex items-center gap-1.5 bg-indigo-50 text-indigo-700 border border-indigo-100 px-2.5 py-1 rounded-xl text-xs font-bold shadow-xs">
-        <UserIcon size={13} className="text-indigo-600" />
-        <span>فروشنده: {name}</span>
-      </span>
+      <div className="space-y-1.5">
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {name && !isManager ? (
+            <span className="inline-flex items-center gap-1.5 bg-indigo-50 text-indigo-700 border border-indigo-100 px-2.5 py-1 rounded-xl text-xs font-bold shadow-xs">
+              <UserIcon size={13} className="text-indigo-600" />
+              <span>فروشنده: {name}</span>
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1.5 bg-amber-50 text-amber-800 border border-amber-200/80 px-2.5 py-1 rounded-xl text-xs font-bold shadow-xs">
+              <ShieldCheck size={13} className="text-amber-600" />
+              <span>{name || 'مدیر سیستم'}</span>
+            </span>
+          )}
+        </div>
+
+        {/* برای مدیر امکان تغییر یا انتساب مستقیم سریع صادرکننده وجود دارد */}
+        {isAdmin && users.length > 0 && (
+          <div className="pt-0.5">
+            <select
+              value={sale.sellerId || (isManager ? 'admin-id' : '')}
+              onChange={e => handleAssignSeller(sale, e.target.value)}
+              className="text-[11px] font-bold text-slate-600 bg-slate-50 border border-slate-200 hover:border-indigo-400 rounded-lg px-2 py-1 outline-none focus:border-indigo-500 cursor-pointer transition-colors max-w-[150px] truncate"
+              title="تغییر یا انتساب صادرکننده این فاکتور"
+            >
+              <option value="admin-id">مدیر سیستم (دفتر مرکزی)</option>
+              {users.map(u => (
+                <option key={u.id} value={u.id}>
+                  {u.role === 'ADMIN' ? 'مدیر: ' : 'فروشنده: '} {u.fullName}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+      </div>
     );
   };
 
@@ -412,7 +496,7 @@ const SalesManager: React.FC<Props> = ({ products, setProducts, sales, setSales,
             </h1>
             <p className="text-xs text-slate-400 font-bold mt-1">
               {isAdmin 
-                ? 'ثبت فاکتور جدید، مشاهده کلیه فاکتورها، ویرایش مبالغ و ابطال با بازگشت هوشمند موجودی انبار' 
+                ? 'ثبت فاکتور جدید، مشاهده کلیه فاکتورها، ویرایش مبالغ و انتساب به فروشندگان برای حقوق و پورسانت' 
                 : `ثبت فاکتور جدید و مشاهده سوابق فاکتورهای صادر شده توسط ${currentUser?.fullName || 'شما'}`}
             </p>
           </div>
@@ -461,7 +545,64 @@ const SalesManager: React.FC<Props> = ({ products, setProducts, sales, setSales,
         </div>
       </div>
 
-      {/* کارت‌های خلاصه وضعیت برای فروشنده / مدیر */}
+      {/* بنر راهنما و فیلتر فروشندگان برای مدیر */}
+      {isAdmin && (
+        <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-xs flex flex-col md:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-2 text-xs font-bold text-slate-700">
+            <Filter size={16} className="text-indigo-600" />
+            <span>فیلتر فاکتورها بر اساس فروشنده:</span>
+          </div>
+
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              onClick={() => setSellerFilter('ALL')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all ${
+                sellerFilter === 'ALL'
+                  ? 'bg-indigo-600 text-white shadow-sm'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              همه ({sales.length})
+            </button>
+
+            <button
+              onClick={() => setSellerFilter('UNASSIGNED')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1 ${
+                sellerFilter === 'UNASSIGNED'
+                  ? 'bg-amber-600 text-white shadow-sm'
+                  : 'bg-amber-50 text-amber-800 border border-amber-200/60 hover:bg-amber-100'
+              }`}
+            >
+              <span>بدون انتساب (مدیر)</span>
+              <span className="px-1.5 py-0.2 bg-white/20 rounded-md text-[10px]">
+                {unassignedSalesCount}
+              </span>
+            </button>
+
+            {users.map(u => {
+              const uSalesCount = sales.filter(s => 
+                s.sellerId === u.id || 
+                (s.sellerName && s.sellerName.trim() === u.fullName.trim())
+              ).length;
+              return (
+                <button
+                  key={u.id}
+                  onClick={() => setSellerFilter(u.id)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all ${
+                    sellerFilter === u.id
+                      ? 'bg-indigo-600 text-white shadow-sm'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  {u.fullName} ({uSalesCount})
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* کارت‌های خلاصه وضعیت برای فروشنده */}
       {!isAdmin && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
           <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-xs flex items-center justify-between">
@@ -520,7 +661,7 @@ const SalesManager: React.FC<Props> = ({ products, setProducts, sales, setSales,
                   <div>
                     <h2 className="text-lg font-black text-slate-800">صدور فاکتور جدید</h2>
                     <p className="text-xs text-slate-400 font-bold mt-0.5">
-                      صادرکننده: <span className="text-indigo-600 font-black">{currentUser?.fullName || (isAdmin ? 'مدیر سیستم' : 'فروشنده')}</span>
+                      صادرکننده: <span className="text-indigo-600 font-black">{currentUser?.fullName || (isAdmin ? 'مدیر ارشد' : 'فروشنده')}</span>
                     </p>
                   </div>
                 </div>
@@ -820,8 +961,8 @@ const SalesManager: React.FC<Props> = ({ products, setProducts, sales, setSales,
                   </h2>
                   <p className="text-xs text-slate-400 font-bold mt-1">
                     {isAdmin 
-                      ? 'مشاهده، ویرایش مقادیر، ابطال و بازگشت خودکار کالاها به انبار' 
-                      : `فهرست فاکتورهای ثبت شده توسط ${currentUser?.fullName || 'شما'} با قابلیت ویرایش، مشاهده و ابطال`}
+                      ? 'مشاهده، ویرایش مقادیر، انتساب به فروشندگان و ابطال با بازگشت هوشمند موجودی انبار' 
+                      : `فهرست فاکتورهای ثبت شده توسط ${currentUser?.fullName || 'شما'} با قابلیت مشاهده، ویرایش و ابطال`}
                   </p>
                 </div>
 
@@ -885,7 +1026,7 @@ const SalesManager: React.FC<Props> = ({ products, setProducts, sales, setSales,
                           <ReceiptText size={40} className="mx-auto opacity-25" />
                           <p>
                             {visibleSales.length === 0 
-                              ? (isAdmin ? 'هیچ فاکتوری در سیستم ثبت نشده است.' : 'شما هنوز هیچ فاکتوری صادر نکرده‌اید.')
+                              ? (isAdmin ? 'هیچ فاکتوری با این فیلتر در سیستم ثبت نشده است.' : 'شما هنوز هیچ فاکتوری صادر نکرده‌اید یا فاکتوری ثبت نشده است.')
                               : 'هیچ فاکتوری با عبارت جستجوی وارد شده یافت نشد.'}
                           </p>
                         </td>
@@ -896,7 +1037,7 @@ const SalesManager: React.FC<Props> = ({ products, setProducts, sales, setSales,
                           {/* کد فاکتور و تاریخ */}
                           <td className="px-6 py-4">
                             <span className="font-mono text-xs font-black text-indigo-600 block">
-                              #{sale.id.slice(-6)}
+                              {getCleanInvoiceCode(sale.id)}
                             </span>
                             <span className="text-[11px] text-slate-400 font-bold block mt-0.5">
                               {new Date(sale.date).toLocaleDateString('fa-IR')}
@@ -915,7 +1056,7 @@ const SalesManager: React.FC<Props> = ({ products, setProducts, sales, setSales,
                             </span>
                           </td>
 
-                          {/* فرد صادرکننده فاکتور (هرگز «سیستمی» نمایش داده نمی‌شود) */}
+                          {/* فرد صادرکننده فاکتور */}
                           <td className="px-6 py-4">
                             {renderIssuerBadge(sale)}
                           </td>
@@ -979,7 +1120,7 @@ const SalesManager: React.FC<Props> = ({ products, setProducts, sales, setSales,
                 <div>
                   <h3 className="text-lg font-black text-slate-800">ویرایش فاکتور فروش</h3>
                   <p className="text-xs text-slate-400 font-bold mt-0.5">
-                    کد رهگیری فاکتور: #{editingSale.id.slice(-6)} - تاریخ صدور: {new Date(editingSale.date).toLocaleDateString('fa-IR')}
+                    کد رهگیری فاکتور: {getCleanInvoiceCode(editingSale.id)} - تاریخ صدور: {new Date(editingSale.date).toLocaleDateString('fa-IR')}
                   </p>
                 </div>
               </div>
@@ -1089,22 +1230,22 @@ const SalesManager: React.FC<Props> = ({ products, setProducts, sales, setSales,
                     تغییر یا انتساب صادرکننده فاکتور
                   </label>
                   <select
-                    value={editSellerName}
+                    value={editSellerId || (editSellerName === 'مدیر ارشد' || editSellerName === 'مدیر سیستم' ? 'admin-id' : '')}
                     onChange={e => {
-                      const selectedUser = users.find(u => u.fullName === e.target.value);
+                      const selectedUser = users.find(u => u.id === e.target.value);
                       if (selectedUser) {
                         setEditSellerName(selectedUser.fullName);
                         setEditSellerId(selectedUser.id);
                       } else {
-                        setEditSellerName(e.target.value);
+                        setEditSellerName('مدیر سیستم');
                         setEditSellerId('admin-id');
                       }
                     }}
                     className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-bold outline-none focus:border-indigo-500"
                   >
-                    <option value="مدیر ارشد">مدیر سیستم (دفتر مرکزی)</option>
+                    <option value="admin-id">مدیر سیستم (دفتر مرکزی)</option>
                     {users.map(u => (
-                      <option key={u.id} value={u.fullName}>
+                      <option key={u.id} value={u.id}>
                         {u.role === 'ADMIN' ? 'مدیر: ' : 'فروشنده: '} {u.fullName} ({u.username})
                       </option>
                     ))}
@@ -1206,7 +1347,7 @@ const SalesManager: React.FC<Props> = ({ products, setProducts, sales, setSales,
             <div className="text-center space-y-2">
               <h3 className="text-lg font-black text-slate-800">ابطال و حذف فاکتور فروش</h3>
               <p className="text-xs text-slate-500 leading-relaxed font-bold">
-                آیا از ابطال فاکتور شماره <span className="font-mono text-slate-800 font-black">#{deletingSale.id.slice(-6)}</span> اطمینان دارید؟
+                آیا از ابطال فاکتور شماره <span className="font-mono text-slate-800 font-black">{getCleanInvoiceCode(deletingSale.id)}</span> اطمینان دارید؟
               </p>
             </div>
 
@@ -1278,7 +1419,7 @@ const SalesManager: React.FC<Props> = ({ products, setProducts, sales, setSales,
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 p-4 bg-slate-50 rounded-2xl border border-slate-200/80 text-xs">
               <div>
                 <span className="text-slate-400 block font-bold">شماره فاکتور:</span>
-                <span className="font-black text-slate-800 font-mono text-sm mt-0.5 block">#{viewingInvoice.id.slice(-6)}</span>
+                <span className="font-black text-slate-800 font-mono text-sm mt-0.5 block">{getCleanInvoiceCode(viewingInvoice.id)}</span>
               </div>
               <div>
                 <span className="text-slate-400 block font-bold">تاریخ و زمان صدور:</span>
