@@ -13,7 +13,10 @@ import {
   EyeOff, 
   Lock, 
   Save,
-  CheckCircle2
+  CheckCircle2,
+  ShieldAlert,
+  ShieldCheck,
+  AlertCircle
 } from 'lucide-react';
 import { User, Role } from '../types';
 import { DB } from '../services/db';
@@ -21,6 +24,8 @@ import { DB } from '../services/db';
 interface Props {
   users: User[];
   setUsers: React.Dispatch<React.SetStateAction<User[]>>;
+  currentUser?: User | null;
+  setCurrentUser?: React.Dispatch<React.SetStateAction<User | null>>;
 }
 
 const DEFAULT_ADMIN: User = {
@@ -32,12 +37,19 @@ const DEFAULT_ADMIN: User = {
   commissionRate: 5
 };
 
-const UserManager: React.FC<Props> = ({ users, setUsers }) => {
-  // اگر کاربر دیتابیس خالی بود، کاربر ادمین پیش‌فرض را نمایش می‌دهیم
-  const displayUsers = users.length > 0 ? users : [DEFAULT_ADMIN];
+const UserManager: React.FC<Props> = ({ users, setUsers, currentUser, setCurrentUser }) => {
+  // پیدا کردن حساب مدیر سیستم از دیتابیس؛ اگر هنوز ذخیره نشده باشد از حساب پیش‌فرض استفاده می‌شود
+  const dbAdmin = users.find(u => u.id === 'admin-id' || u.role === 'ADMIN');
+  const activeAdmin: User = dbAdmin || (currentUser?.role === 'ADMIN' ? currentUser : DEFAULT_ADMIN);
+  const isDefaultCredentials = activeAdmin.username.trim() === 'admin' && activeAdmin.password === 'admin';
+
+  // اطمینان از اینکه کارت مدیر سیستم همیشه در لیست کاربران نمایش داده شود
+  const displayUsers = dbAdmin ? users : [activeAdmin, ...users];
 
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
   
   // وضعیت ویرایش سریع درصد پورسانت در کارت
   const [quickEditUserId, setQuickEditUserId] = useState<string | null>(null);
@@ -77,6 +89,25 @@ const UserManager: React.FC<Props> = ({ users, setUsers }) => {
   // ایجاد کاربر جدید
   const handleAddSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setFormError(null);
+
+    const cleanUsername = (addFormData.username || '').trim();
+    const cleanFullName = (addFormData.fullName || '').trim();
+    const password = addFormData.password || '';
+
+    if (!cleanUsername || !password || !cleanFullName) {
+      setFormError('تمامی فیلدها (نام، نام کاربری و رمز عبور) الزامی هستند.');
+      return;
+    }
+
+    const isDuplicate = displayUsers.some(
+      u => u.username.trim().toLowerCase() === cleanUsername.toLowerCase()
+    );
+    if (isDuplicate) {
+      setFormError('این نام کاربری قبلاً برای کاربر دیگری ثبت شده است.');
+      return;
+    }
+
     const parsedRate = typeof addFormData.commissionRate === 'number'
       ? addFormData.commissionRate
       : parseFloat(String(addFormData.commissionRate ?? ''));
@@ -84,22 +115,31 @@ const UserManager: React.FC<Props> = ({ users, setUsers }) => {
 
     const newUser: User = { 
       id: Date.now().toString(),
-      username: addFormData.username || '',
-      password: addFormData.password || '',
-      fullName: addFormData.fullName || '',
+      username: cleanUsername,
+      password,
+      fullName: cleanFullName,
       role: (addFormData.role as Role) || 'SALESPERSON',
       commissionRate: validRate
     };
 
-    await DB.saveUser(newUser);
-    setUsers(prev => [...prev.filter(u => u.id !== 'admin-id'), newUser]);
-    setIsAddModalOpen(false);
-    setAddFormData({ username: '', password: '', fullName: '', role: 'SALESPERSON', commissionRate: 5 });
-    showToast(`حساب کاربری ${newUser.fullName} با پورسانت ${validRate}٪ با موفقیت ایجاد شد.`);
+    setIsSaving(true);
+    try {
+      await DB.saveUser(newUser);
+      setUsers(prev => [...prev, newUser]);
+      setIsAddModalOpen(false);
+      setAddFormData({ username: '', password: '', fullName: '', role: 'SALESPERSON', commissionRate: 5 });
+      showToast(`حساب کاربری ${newUser.fullName} با پورسانت ${validRate}٪ با موفقیت ایجاد شد.`);
+    } catch (err) {
+      console.error(err);
+      setFormError('خطا در ذخیره اطلاعات کاربر جدید!');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   // باز کردن مودال ویرایش کاربر
   const handleOpenEditModal = (user: User) => {
+    setFormError(null);
     setEditingUser(user);
     setEditFormData({
       username: user.username,
@@ -111,10 +151,32 @@ const UserManager: React.FC<Props> = ({ users, setUsers }) => {
     setShowPassword(false);
   };
 
-  // ذخیره تغییرات ویرایش کاربر (شامل تغییر/بازیابی رمز عبور و درصد پورسانت)
+  // ذخیره تغییرات ویرایش کاربر (شامل تغییر نام کاربری و رمز عبور مدیر یا فروشندگان و درصد پورسانت)
   const handleEditSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editingUser) return;
+    if (!editingUser || isSaving) return;
+    setFormError(null);
+
+    const cleanUsername = (editFormData.username || '').trim();
+    const cleanFullName = (editFormData.fullName || '').trim();
+    const newPassword = editFormData.password || '';
+
+    if (!cleanUsername || !newPassword || !cleanFullName) {
+      setFormError('نام، نام کاربری و رمز عبور نمی‌توانند خالی باشند.');
+      return;
+    }
+
+    const isDuplicate = displayUsers.some(
+      u => u.id !== editingUser.id && u.username.trim().toLowerCase() === cleanUsername.toLowerCase()
+    );
+    if (isDuplicate) {
+      setFormError('این نام کاربری قبلاً استفاده شده است. لطفاً نام کاربری دیگری انتخاب کنید.');
+      return;
+    }
+
+    const adminCount = users.filter(u => u.role === 'ADMIN').length;
+    const isProtectedAdmin = editingUser.id === 'admin-id' || (editingUser.role === 'ADMIN' && adminCount <= 1);
+    const finalRole: Role = isProtectedAdmin ? 'ADMIN' : ((editFormData.role as Role) || editingUser.role);
 
     const parsedRate = typeof editFormData.commissionRate === 'number'
       ? editFormData.commissionRate
@@ -123,32 +185,62 @@ const UserManager: React.FC<Props> = ({ users, setUsers }) => {
 
     const updatedUser: User = {
       ...editingUser,
-      fullName: editFormData.fullName || editingUser.fullName,
-      username: editFormData.username || editingUser.username,
-      password: editFormData.password || editingUser.password,
-      role: (editFormData.role as Role) || editingUser.role,
+      fullName: cleanFullName,
+      username: cleanUsername,
+      password: newPassword,
+      role: finalRole,
       commissionRate: validRate
     };
 
-    await DB.saveUser(updatedUser);
+    setIsSaving(true);
+    try {
+      await DB.saveUser(updatedUser);
 
-    // به‌روزرسانی لیست کاربران در ری‌اکت
-    setUsers(prev => {
-      const exists = prev.some(u => u.id === updatedUser.id);
-      if (exists) {
-        return prev.map(u => u.id === updatedUser.id ? updatedUser : u);
+      // به‌روزرسانی لیست کاربران در ری‌اکت
+      setUsers(prev => {
+        const exists = prev.some(u => u.id === updatedUser.id);
+        if (exists) {
+          return prev.map(u => u.id === updatedUser.id ? updatedUser : u);
+        }
+        return [updatedUser, ...prev];
+      });
+
+      // اگر مدیر یا کاربرِ فعلی اطلاعات خود را ویرایش کرد، نشست فعال نیز فوراً همگام‌سازی شود
+      if (
+        currentUser &&
+        setCurrentUser &&
+        (currentUser.id === updatedUser.id || (currentUser.role === 'ADMIN' && updatedUser.id === 'admin-id'))
+      ) {
+        setCurrentUser(updatedUser);
+        try {
+          if (typeof window !== 'undefined' && window.localStorage) {
+            localStorage.setItem('smart_shop_auth_user', JSON.stringify(updatedUser));
+          }
+        } catch {
+          // ignore
+        }
       }
-      return [...prev, updatedUser];
-    });
 
-    setEditingUser(null);
-    showToast(`اطلاعات، رمز عبور و پورسانت (${validRate}٪) کاربر "${updatedUser.fullName}" با موفقیت بروزرسانی شد.`);
+      setEditingUser(null);
+      if (updatedUser.role === 'ADMIN') {
+        showToast(`نام کاربری و رمز عبور مدیر سیستم («${updatedUser.fullName}») با موفقیت تغییر یافت و در دیتابیس ذخیره شد.`);
+      } else {
+        showToast(`اطلاعات، رمز عبور و پورسانت (${validRate}٪) کاربر "${updatedUser.fullName}" با موفقیت بروزرسانی شد.`);
+      }
+    } catch (err) {
+      console.error(err);
+      setFormError('خطا در ذخیره تغییرات در پایگاه داده!');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   // حذف کاربر
   const handleDelete = async (id: string) => {
-    if (id === 'admin-id') {
-      alert('کاربر ادمین اصلی قابل حذف نیست!');
+    const target = displayUsers.find(u => u.id === id);
+    const adminCount = displayUsers.filter(u => u.role === 'ADMIN').length;
+    if (id === 'admin-id' || (target?.role === 'ADMIN' && adminCount <= 1)) {
+      alert('حساب مدیر اصلی سیستم قابل حذف نیست!');
       return;
     }
     if (window.confirm('آیا از حذف این کاربر اطمینان دارید؟')) {
@@ -163,7 +255,11 @@ const UserManager: React.FC<Props> = ({ users, setUsers }) => {
     const validRate = Math.max(0, Math.min(100, quickEditRate));
     const updatedUser = { ...user, commissionRate: validRate };
     await DB.saveUser(updatedUser);
-    setUsers(prev => prev.map(u => u.id === user.id ? updatedUser : u));
+    setUsers(prev => {
+      const exists = prev.some(u => u.id === user.id);
+      if (exists) return prev.map(u => u.id === user.id ? updatedUser : u);
+      return [updatedUser, ...prev];
+    });
     setQuickEditUserId(null);
     showToast(`درصد پورسانت "${user.fullName}" به ${validRate}٪ تغییر یافت و ذخیره شد.`);
   };
@@ -183,11 +279,12 @@ const UserManager: React.FC<Props> = ({ users, setUsers }) => {
         <div>
           <h2 className="text-2xl font-black text-slate-800">مدیریت سیستم و کاربران</h2>
           <p className="text-slate-500 text-sm mt-1">
-            تعریف فروشندگان، ویرایش مشخصات، تغییر/بازیابی رمز عبور و تنظیم درصد پورسانت
+            تنظیمات امنیتی مدیر سیستم، تعریف فروشندگان، تغییر نام کاربری/رمز عبور و درصد پورسانت
           </p>
         </div>
         <button 
           onClick={() => {
+            setFormError(null);
             setShowPassword(false);
             setIsAddModalOpen(true);
           }}
@@ -195,6 +292,52 @@ const UserManager: React.FC<Props> = ({ users, setUsers }) => {
         >
           <UserPlus size={18} />
           <span>افزودن فروشنده / کاربر جدید</span>
+        </button>
+      </div>
+
+      {/* بنر اختصاصی امنیت و تغییر نام کاربری/رمز عبور مدیر سیستم */}
+      <div className={`p-6 rounded-[2rem] border flex flex-col lg:flex-row lg:items-center justify-between gap-4 shadow-sm ${
+        isDefaultCredentials 
+          ? 'bg-amber-50 border-amber-200' 
+          : 'bg-emerald-50/70 border-emerald-200/80'
+      }`}>
+        <div className="flex items-start sm:items-center gap-4">
+          <div className={`p-3.5 rounded-2xl shrink-0 ${
+            isDefaultCredentials ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'
+          }`}>
+            {isDefaultCredentials ? <ShieldAlert size={26} /> : <ShieldCheck size={26} />}
+          </div>
+          <div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <h3 className={`text-base font-black ${isDefaultCredentials ? 'text-amber-900' : 'text-emerald-900'}`}>
+                {isDefaultCredentials ? 'هشدار امنیتی: مشخصات پیش‌فرض مدیر سیستم!' : 'امنیت حساب مدیر سیستم فعال است'}
+              </h3>
+              <span className={`text-[10px] font-black px-2.5 py-0.5 rounded-lg ${
+                isDefaultCredentials ? 'bg-rose-100 text-rose-700' : 'bg-emerald-200/70 text-emerald-800'
+              }`}>
+                نام کاربری فعلی: {activeAdmin.username}
+              </span>
+            </div>
+            <p className={`text-xs font-bold mt-1 leading-relaxed ${
+              isDefaultCredentials ? 'text-amber-800/90' : 'text-emerald-800/80'
+            }`}>
+              {isDefaultCredentials 
+                ? 'حساب مدیر همچنان با نام کاربری و رمز عبور پیش‌فرض (admin) است. برای جلوگیری از دسترسی غیرمجاز، همین الان نام کاربری و رمز عبور جدیدی برای خود تنظیم کنید.'
+                : 'رمز عبور و نام کاربری مدیر سیستم شخصی‌سازی شده است و ورود پیش‌فرض (admin/admin) غیرفعال می‌باشد. هر زمان مایل بودید می‌توانید مجدداً آن را تغییر دهید.'}
+            </p>
+          </div>
+        </div>
+
+        <button
+          onClick={() => handleOpenEditModal(activeAdmin)}
+          className={`px-5 py-3.5 rounded-2xl text-xs font-black transition-all flex items-center justify-center gap-2 shrink-0 shadow-md ${
+            isDefaultCredentials
+              ? 'bg-amber-600 hover:bg-amber-700 text-white shadow-amber-600/20'
+              : 'bg-white hover:bg-emerald-600 text-emerald-700 hover:text-white border border-emerald-200 shadow-emerald-600/5'
+          }`}
+        >
+          <KeyRound size={16} />
+          <span>تغییر نام کاربری و رمز مدیر</span>
         </button>
       </div>
 
@@ -407,7 +550,8 @@ const UserManager: React.FC<Props> = ({ users, setUsers }) => {
                 <div>
                   <label className="block text-xs font-bold text-slate-600 mb-1.5 mr-1">سطح دسترسی</label>
                   <select 
-                    className="w-full px-4 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 text-xs font-bold"
+                    disabled={editingUser.id === 'admin-id' || (editingUser.role === 'ADMIN' && users.filter(u => u.role === 'ADMIN').length <= 1)}
+                    className="w-full px-4 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500 text-xs font-bold disabled:opacity-60 disabled:cursor-not-allowed"
                     value={editFormData.role || 'SALESPERSON'}
                     onChange={e => setEditFormData({...editFormData, role: e.target.value as Role})}
                   >
@@ -429,13 +573,21 @@ const UserManager: React.FC<Props> = ({ users, setUsers }) => {
                 </div>
               </div>
 
+              {formError && (
+                <div className="flex items-center gap-2 text-rose-600 bg-rose-50 p-3 rounded-xl text-xs font-bold">
+                  <AlertCircle size={16} className="shrink-0" />
+                  <span>{formError}</span>
+                </div>
+              )}
+
               <div className="pt-2 flex items-center gap-3">
                 <button 
                   type="submit" 
-                  className="flex-1 bg-indigo-600 text-white py-3.5 rounded-2xl font-black hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-600/20 text-xs flex items-center justify-center gap-2"
+                  disabled={isSaving}
+                  className="flex-1 bg-indigo-600 text-white py-3.5 rounded-2xl font-black hover:bg-indigo-700 disabled:opacity-60 transition-all shadow-lg shadow-indigo-600/20 text-xs flex items-center justify-center gap-2"
                 >
                   <Save size={16} />
-                  <span>ذخیره تغییرات و رمز عبور</span>
+                  <span>{isSaving ? 'در حال ذخیره...' : 'ذخیره تغییرات و رمز عبور'}</span>
                 </button>
                 <button 
                   type="button"
@@ -535,11 +687,19 @@ const UserManager: React.FC<Props> = ({ users, setUsers }) => {
                 </div>
               </div>
 
+              {formError && (
+                <div className="flex items-center gap-2 text-rose-600 bg-rose-50 p-3 rounded-xl text-xs font-bold">
+                  <AlertCircle size={16} className="shrink-0" />
+                  <span>{formError}</span>
+                </div>
+              )}
+
               <button 
                 type="submit" 
-                className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-black mt-2 hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-600/20 text-xs"
+                disabled={isSaving}
+                className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-black mt-2 hover:bg-indigo-700 disabled:opacity-60 transition-all shadow-lg shadow-indigo-600/20 text-xs"
               >
-                ایجاد کاربر و ثبت پورسانت
+                {isSaving ? 'در حال ثبت...' : 'ایجاد کاربر و ثبت پورسانت'}
               </button>
             </form>
           </div>

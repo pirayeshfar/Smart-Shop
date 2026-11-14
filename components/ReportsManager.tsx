@@ -99,8 +99,13 @@ const ReportsManager: React.FC<Props> = ({ products, sales, expenses, users }) =
       const inDateRange = sDate >= startDate && sDate <= now;
       if (!inDateRange) return false;
       if (selectedSellerId === 'ALL') return true;
+      const selectedUser = users.find(u => u.id === selectedSellerId);
       return (s.sellerId && s.sellerId === selectedSellerId) ||
-             (s.sellerName && users.find(u => u.id === selectedSellerId)?.fullName === s.sellerName);
+             (s.sellerName && selectedUser && (
+               s.sellerName.trim() === selectedUser.fullName.trim() ||
+               s.sellerName.includes(selectedUser.fullName.trim()) ||
+               selectedUser.fullName.includes(s.sellerName.trim())
+             ));
     });
   }, [sales, startDate, now, selectedSellerId, users]);
 
@@ -111,8 +116,13 @@ const ReportsManager: React.FC<Props> = ({ products, sales, expenses, users }) =
       const inDateRange = sDate >= prevStartDate && sDate < prevEndDate;
       if (!inDateRange) return false;
       if (selectedSellerId === 'ALL') return true;
+      const selectedUser = users.find(u => u.id === selectedSellerId);
       return (s.sellerId && s.sellerId === selectedSellerId) ||
-             (s.sellerName && users.find(u => u.id === selectedSellerId)?.fullName === s.sellerName);
+             (s.sellerName && selectedUser && (
+               s.sellerName.trim() === selectedUser.fullName.trim() ||
+               s.sellerName.includes(selectedUser.fullName.trim()) ||
+               selectedUser.fullName.includes(s.sellerName.trim())
+             ));
     });
   }, [sales, prevStartDate, prevEndDate, selectedSellerId, users]);
 
@@ -321,7 +331,7 @@ const ReportsManager: React.FC<Props> = ({ products, sales, expenses, users }) =
   const handleExportCSV = () => {
     const headers = ['کد فاکتور', 'تاریخ', 'نام محصول', 'تعداد', 'فروشنده', 'مبلغ کل (تومان)', 'سود (تومان)'];
     const rows = currentSales.map(s => [
-      s.id,
+      s.id.split('__')[0].split('@')[0],
       new Date(s.date).toLocaleDateString('fa-IR'),
       `"${s.productName.replace(/"/g, '""')}"`,
       s.quantity,
@@ -747,7 +757,7 @@ const ReportsManager: React.FC<Props> = ({ products, sales, expenses, users }) =
             </div>
           ) : (
             <div className="space-y-3">
-              {sellersPerformance.map(({ user, revenue, count, commission, share }) => (
+              {sellersPerformance.map(({ user, revenue, count, rate, commission, share }) => (
                 <div key={user.id} className="p-4 bg-slate-50 rounded-2xl border border-slate-100 hover:border-emerald-200 transition-all">
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-2.5">

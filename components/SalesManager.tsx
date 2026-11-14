@@ -513,7 +513,7 @@ const SalesManager: React.FC<Props> = ({ products, setProducts, sales, setSales,
               title="تغییر یا انتساب صادرکننده این فاکتور"
             >
               <option value="admin-id">مدیر سیستم (دفتر مرکزی)</option>
-              {users.map(u => (
+              {users.filter(u => u.id !== 'admin-id').map(u => (
                 <option key={u.id} value={u.id}>
                   {u.role === 'ADMIN' ? 'مدیر: ' : 'فروشنده: '} {u.fullName}
                 </option>
@@ -1083,7 +1083,7 @@ const SalesManager: React.FC<Props> = ({ products, setProducts, sales, setSales,
                     >
                       <option value="">-- انتخاب فروشنده --</option>
                       <option value="admin-id">مدیر سیستم (دفتر مرکزی)</option>
-                      {users.map(u => (
+                      {users.filter(u => u.id !== 'admin-id').map(u => (
                         <option key={u.id} value={u.id}>
                           {u.role === 'ADMIN' ? 'مدیر: ' : 'فروشنده: '} {u.fullName}
                         </option>
@@ -1370,7 +1370,7 @@ const SalesManager: React.FC<Props> = ({ products, setProducts, sales, setSales,
                     className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-bold outline-none focus:border-indigo-500"
                   >
                     <option value="admin-id">مدیر سیستم (دفتر مرکزی)</option>
-                    {users.map(u => (
+                    {users.filter(u => u.id !== 'admin-id').map(u => (
                       <option key={u.id} value={u.id}>
                         {u.role === 'ADMIN' ? 'مدیر: ' : 'فروشنده: '} {u.fullName} ({u.username})
                       </option>

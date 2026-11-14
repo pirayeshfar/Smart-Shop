@@ -6,18 +6,31 @@ import { User } from '../types';
 interface Props {
   onLogin: (user: User) => void;
   users: User[];
+  isLoading?: boolean;
 }
 
-const Login: React.FC<Props> = ({ onLogin, users }) => {
+const Login: React.FC<Props> = ({ onLogin, users, isLoading = false }) => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    
-    // یوزرنیم و پسورد پیش‌فرض ادمین اگر دیتابیس خالی بود
-    if (username === 'admin' && password === 'admin') {
+    if (isLoading) return;
+
+    const cleanUsername = username.trim();
+    const foundUser = users.find(u => u.username.trim() === cleanUsername && u.password === password);
+
+    if (foundUser) {
+      setError('');
+      onLogin(foundUser);
+      return;
+    }
+
+    // ورود با نام کاربری و رمز پیش‌فرض فقط زمانی مجاز است که هنوز هیچ مدیری در دیتابیس تعریف/شخصی‌سازی نشده باشد
+    const hasAdminInDb = users.some(u => u.role === 'ADMIN');
+    if (!hasAdminInDb && cleanUsername === 'admin' && password === 'admin') {
+      setError('');
       onLogin({
         id: 'admin-id',
         username: 'admin',
@@ -28,13 +41,7 @@ const Login: React.FC<Props> = ({ onLogin, users }) => {
       return;
     }
 
-    const foundUser = users.find(u => u.username === username && u.password === password);
-    
-    if (foundUser) {
-      onLogin(foundUser);
-    } else {
-      setError('نام کاربری یا رمز عبور اشتباه است.');
-    }
+    setError('نام کاربری یا رمز عبور اشتباه است.');
   };
 
   return (
@@ -59,7 +66,10 @@ const Login: React.FC<Props> = ({ onLogin, users }) => {
                 className="w-full pr-12 pl-4 py-4 bg-slate-100 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all font-bold"
                 placeholder="Username"
                 value={username}
-                onChange={e => setUsername(e.target.value)}
+                onChange={e => {
+                  setUsername(e.target.value);
+                  if (error) setError('');
+                }}
               />
             </div>
           </div>
@@ -74,7 +84,10 @@ const Login: React.FC<Props> = ({ onLogin, users }) => {
                 className="w-full pr-12 pl-4 py-4 bg-slate-100 border-none rounded-2xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all font-bold"
                 placeholder="••••••••"
                 value={password}
-                onChange={e => setPassword(e.target.value)}
+                onChange={e => {
+                  setPassword(e.target.value);
+                  if (error) setError('');
+                }}
               />
             </div>
           </div>
@@ -88,9 +101,10 @@ const Login: React.FC<Props> = ({ onLogin, users }) => {
 
           <button 
             type="submit" 
-            className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-black hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-600/20 active:scale-[0.98]"
+            disabled={isLoading}
+            className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-black hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-wait transition-all shadow-lg shadow-indigo-600/20 active:scale-[0.98]"
           >
-            ورود امن
+            {isLoading ? 'در حال دریافت اطلاعات سامانه...' : 'ورود امن'}
           </button>
         </form>
 

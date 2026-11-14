@@ -76,6 +76,33 @@ const App: React.FC = () => {
         setSales(s);
         setExpenses(e);
         setUsers(u);
+
+        // همگام‌سازی نشست فعلی کاربر با اطلاعات بروزرسانی‌شده دیتابیس
+        setCurrentUser(prev => {
+          if (!prev) return null;
+          const matched = u.find(item => item.id === prev.id);
+          if (matched) {
+            if (matched.password !== prev.password || matched.username !== prev.username) {
+              try {
+                localStorage.removeItem('smart_shop_auth_user');
+              } catch { /* ignore */ }
+              return null;
+            }
+            try {
+              localStorage.setItem('smart_shop_auth_user', JSON.stringify(matched));
+            } catch { /* ignore */ }
+            return matched;
+          }
+          // اگر ادمین پیش‌فرض بوده ولی در دیتابیس ادمین اختصاصی تعریف شده باشد، نشست قدیمی بسته شود
+          if (prev.id === 'admin-id' && u.some(item => item.role === 'ADMIN')) {
+            try {
+              localStorage.removeItem('smart_shop_auth_user');
+            } catch { /* ignore */ }
+            return null;
+          }
+          return prev;
+        });
+
         setConnectionStatus('connected');
       } catch (err) {
         console.error('Load Error:', err);
@@ -116,7 +143,7 @@ const App: React.FC = () => {
   ].filter(item => item.roles.includes(currentUser?.role || ''));
 
   if (!currentUser) {
-    return <Login users={users} onLogin={(user) => {
+    return <Login users={users} isLoading={!isLoaded} onLogin={(user) => {
       try {
         if (typeof window !== 'undefined' && window.localStorage) {
           localStorage.setItem('smart_shop_auth_user', JSON.stringify(user));
@@ -234,7 +261,7 @@ const App: React.FC = () => {
                   {currentView === View.SALES && <SalesManager products={products} setProducts={setProducts} sales={sales} setSales={setSales} currentUser={currentUser} users={users} />}
                   {currentView === View.EXPENSES && <ExpenseManager expenses={expenses} setExpenses={setExpenses} />}
                   {currentView === View.AI_INSIGHTS && <AIInsights products={products} sales={sales} expenses={expenses} />}
-                  {currentView === View.USER_MANAGEMENT && <UserManager users={users} setUsers={setUsers} />}
+                  {currentView === View.USER_MANAGEMENT && <UserManager users={users} setUsers={setUsers} currentUser={currentUser} setCurrentUser={setCurrentUser} />}
                 </>
               )}
             </div>

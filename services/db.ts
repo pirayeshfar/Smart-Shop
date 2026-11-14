@@ -205,7 +205,10 @@ export const DB = {
     if (error && userPayload.commissionRate !== undefined) {
       // اگر جدول ریموت ستون commissionRate نداشت، بدون آن در دیتابیس ثبت می‌شود
       delete userPayload.commissionRate;
-      await supabase.from('users').upsert(userPayload);
+      const { error: fallbackError } = await supabase.from('users').upsert(userPayload);
+      if (fallbackError) throw fallbackError;
+    } else if (error) {
+      throw error;
     }
   },
 
