@@ -1,6 +1,5 @@
 
 import React, { useState } from 'react';
-import { GoogleGenAI } from '@google/genai';
 import { BrainCircuit, Sparkles, Loader2, BarChart2 } from 'lucide-react';
 import { Product, Sale, Expense } from '../types';
 
@@ -17,28 +16,32 @@ const AIInsights: React.FC<Props> = ({ products, sales, expenses }) => {
   const generateInsights = async () => {
     setLoading(true);
     try {
-      // Always initialize GoogleGenAI with process.env.API_KEY directly as per guidelines.
-      // This also resolves the 'Property env does not exist on type ImportMeta' error.
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-      
-      const dataSummary = `
-        Shop Data Summary:
-        - Total Products: ${products.length}
-        - Sales Records: ${sales.length}
-        - Total Revenue: ${sales.reduce((a, s) => a + s.totalAmount, 0)}
-        - Total Expenses: ${expenses.reduce((a, e) => a + e.amount, 0)}
-      `;
-
-      const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
-        contents: `Analyze this shop data and provide 3 actionable business insights in Persian. Data: ${dataSummary}`,
+      const response = await fetch('/api/insights', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          totalProducts: products.length,
+          salesCount: sales.length,
+          totalRevenue: sales.reduce((a, s) => a + s.totalAmount, 0),
+          totalExpenses: expenses.reduce((a, e) => a + e.amount, 0),
+        }),
       });
 
-      // Extract generated text using the .text property (not a method) from the response.
-      setInsight(response.text || 'تحلیلی دریافت نشد.');
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data?.error || 'خطا در ارتباط با هوش مصنوعی.');
+      }
+
+      setInsight(data.insight || 'تحلیلی دریافت نشد.');
     } catch (error) {
       console.error('Gemini API Error:', error);
-      setInsight('خطا در ارتباط با هوش مصنوعی. لطفاً دوباره تلاش کنید.');
+      setInsight(
+        error instanceof Error && error.message
+          ? error.message
+          : 'خطا در ارتباط با هوش مصنوعی. لطفاً دوباره تلاش کنید.'
+      );
     } finally {
       setLoading(false);
     }
