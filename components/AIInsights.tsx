@@ -41,6 +41,9 @@ const AIInsights: React.FC<Props> = ({ products, sales, expenses }) => {
       }
 
       if (!response.ok) {
+        if (response.status === 404 && !data?.error) {
+          throw new Error('مسیر سرویس هوش مصنوعی روی سرور یافت نشد (۴۰۴). لطفاً آخرین نسخه را روی هاست منتشر کنید.');
+        }
         throw new Error(data?.error || 'خطا در ارتباط با هوش مصنوعی. لطفاً دوباره تلاش کنید.');
       }
 
