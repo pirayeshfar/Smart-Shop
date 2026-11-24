@@ -19,10 +19,23 @@ import {
   Sparkles,
   PieChart as PieIcon,
   ChevronDown,
+  ChevronRight,
+  ChevronLeft,
   Layers,
   HelpCircle
 } from 'lucide-react';
 import { Product, Sale, Expense, User } from '../types';
+import {
+  PERSIAN_MONTHS,
+  toPersianDigits,
+  getJalaliFromDate,
+  getJalaliMonthLength,
+  getJalaliMonthRange,
+  shiftJalaliMonth,
+  toJalaliMonthKey,
+  parseJalaliMonthKey,
+  formatJalaliMonthLabel,
+} from '../utils/persianDate';
 import { 
   ResponsiveContainer, 
   AreaChart, 
@@ -49,80 +62,222 @@ const formatPrice = (price: number) => {
   return new Intl.NumberFormat('fa-IR').format(Math.round(price)) + ' تومان';
 };
 
+const getLocalDateKey = (date: Date) => {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+};
+
+const matchesSeller = (sale: Sale, sellerId: string, usersList: User[]): boolean => {
+  if (sellerId === 'ALL') return true;
+  const selectedUser = usersList.find(u => u.id === sellerId);
+  return (
+    Boolean(sale.sellerId && sale.sellerId === sellerId) ||
+    Boolean(
+      sale.sellerName &&
+        selectedUser &&
+        (sale.sellerName.trim() === selectedUser.fullName.trim() ||
+          sale.sellerName.includes(selectedUser.fullName.trim()) ||
+          selectedUser.fullName.includes(sale.sellerName.trim()))
+    )
+  );
+};
+
 const ReportsManager: React.FC<Props> = ({ products, sales, expenses, users }) => {
+  const currentJalali = useMemo(() => getJalaliFromDate(new Date()), []);
+  const currentMonthKey = useMemo(
+    () => toJalaliMonthKey(currentJalali.jy, currentJalali.jm),
+    [currentJalali]
+  );
+
   const [period, setPeriod] = useState<PeriodType>('MONTHLY');
+  const [selectedMonthKey, setSelectedMonthKey] = useState<string>(currentMonthKey);
   const [selectedSellerId, setSelectedSellerId] = useState<string>('ALL');
 
-  // تعیین بازه زمانی فیلتر
-  const now = useMemo(() => new Date(), []);
-
-  // محاسبه محدوده زمانی بر اساس دوره انتخاب شده
-  const { startDate, prevStartDate, prevEndDate, periodLabel } = useMemo(() => {
-    const current = new Date();
-    let start = new Date();
-    let prevStart = new Date();
-    let prevEnd = new Date();
-    let label = '';
-
-    if (period === 'WEEKLY') {
-      // ۷ روز اخیر
-      start.setDate(current.getDate() - 7);
-      prevEnd.setDate(current.getDate() - 7);
-      prevStart.setDate(current.getDate() - 14);
-      label = 'گزارش هفتگی (۷ روز اخیر)';
-    } else if (period === 'MONTHLY') {
-      // ۳۰ روز اخیر
-      start.setDate(current.getDate() - 30);
-      prevEnd.setDate(current.getDate() - 30);
-      prevStart.setDate(current.getDate() - 60);
-      label = 'گزارش ماهانه (۳۰ روز اخیر)';
-    } else {
-      // ۳۶۵ روز اخیر
-      start.setDate(current.getDate() - 365);
-      prevEnd.setDate(current.getDate() - 365);
-      prevStart.setDate(current.getDate() - 730);
-      label = 'گزارش سالانه (۱۲ ماه اخیر)';
+  // ساخت لیست ماه‌های شمسی قابل انتخاب (ماه جاری + ۱۱ ماه قبل + تمام ماه‌های دارای سند ثبت‌شده)
+  const availableMonthOptions = useMemo(() => {
+    const keys = new Set<string>();
+    for (let i = 0; i < 12; i++) {
+      const m = shiftJalaliMonth(currentJalali.jy, currentJalali.jm, -i);
+      keys.add(toJalaliMonthKey(m.jy, m.jm));
     }
 
-    return {
-      startDate: start,
-      prevStartDate: prevStart,
-      prevEndDate: prevEnd,
-      periodLabel: label
-    };
-  }, [period]);
+    sales.forEach(s => {
+      const d = new Date(s.date);
+      if (!Number.isNaN(d.getTime())) {
+        const j = getJalaliFromDate(d);
+        keys.add(toJalaliMonthKey(j.jy, j.jm));
+      }
+    });
 
-  // فیلتر فروش‌ها بر اساس بازه زمانی و فروشنده انتخابی
-  const currentSales = useMemo(() => {
+    expenses.forEach(e => {
+      const d = new Date(e.date);
+      if (!Number.isNaN(d.getTime())) {
+        const j = getJalaliFromDate(d);
+        keys.add(toJalaliMonthKey(j.jy, j.jm));
+      }
+    });
+
+    const sortedKeys = Array.from(keys).sort((a, b) => b.localeCompare(a));
+    const options = sortedKeys.map(key => {
+      const parsed = parseJalaliMonthKey(key);
+      const baseLabel = parsed ? formatJalaliMonthLabel(parsed.jy, parsed.jm) : key;
+      return {
+        key,
+        label: key === currentMonthKey ? `${baseLabel} (ماه جاری)` : baseLabel,
+      };
+    });
+
+    options.push({
+      key: 'ROLLING_30',
+      label: '۳۰ روز اخیر (بازه چرخشی)',
+    });
+
+    return options;
+  }, [sales, expenses, currentJalali, currentMonthKey]);
+
+  const calendarMonthKeys = useMemo(
+    () => availableMonthOptions.filter(o => o.key !== 'ROLLING_30').map(o => o.key),
+    [availableMonthOptions]
+  );
+  const currentMonthNavIdx = calendarMonthKeys.indexOf(selectedMonthKey);
+  const canGoPrevMonth =
+    selectedMonthKey === 'ROLLING_30'
+      ? calendarMonthKeys.length > 0
+      : currentMonthNavIdx !== -1 && currentMonthNavIdx < calendarMonthKeys.length - 1;
+  const canGoNextMonth = selectedMonthKey !== 'ROLLING_30' && currentMonthNavIdx > 0;
+
+  const handlePrevMonth = () => {
+    if (selectedMonthKey === 'ROLLING_30') {
+      if (calendarMonthKeys.length > 0) setSelectedMonthKey(calendarMonthKeys[0]);
+      return;
+    }
+    if (canGoPrevMonth) {
+      setSelectedMonthKey(calendarMonthKeys[currentMonthNavIdx + 1]);
+    }
+  };
+
+  const handleNextMonth = () => {
+    if (canGoNextMonth) {
+      setSelectedMonthKey(calendarMonthKeys[currentMonthNavIdx - 1]);
+    }
+  };
+
+  // محاسبه محدوده زمانی دقیق بر اساس دوره و ماه شمسی انتخاب‌شده
+  const {
+    startDate,
+    endDate,
+    prevStartDate,
+    prevEndDate,
+    periodLabel,
+    periodBadge,
+    selectedJalaliMonth,
+  } = useMemo(() => {
+    const today = new Date();
+    const endOfToday = new Date(
+      today.getFullYear(),
+      today.getMonth(),
+      today.getDate(),
+      23,
+      59,
+      59,
+      999
+    );
+
+    if (period === 'WEEKLY') {
+      const start = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 6, 0, 0, 0, 0);
+      const prevEnd = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 7, 23, 59, 59, 999);
+      const prevStart = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 13, 0, 0, 0, 0);
+      return {
+        startDate: start,
+        endDate: endOfToday,
+        prevStartDate: prevStart,
+        prevEndDate: prevEnd,
+        periodLabel: 'گزارش هفتگی (۷ روز اخیر)',
+        periodBadge: 'دوره‌ای: ۷ روز اخیر',
+        selectedJalaliMonth: null as { jy: number; jm: number } | null,
+      };
+    }
+
+    if (period === 'MONTHLY') {
+      if (selectedMonthKey === 'ROLLING_30') {
+        const start = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 29, 0, 0, 0, 0);
+        const prevEnd = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 30, 23, 59, 59, 999);
+        const prevStart = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 59, 0, 0, 0, 0);
+        return {
+          startDate: start,
+          endDate: endOfToday,
+          prevStartDate: prevStart,
+          prevEndDate: prevEnd,
+          periodLabel: '۳۰ روز اخیر (بازه چرخشی)',
+          periodBadge: 'دوره‌ای: ۳۰ روز اخیر',
+          selectedJalaliMonth: null as { jy: number; jm: number } | null,
+        };
+      }
+
+      const parsed = parseJalaliMonthKey(selectedMonthKey) || {
+        jy: currentJalali.jy,
+        jm: currentJalali.jm,
+      };
+      const { startDate: mStart, endDate: mEnd } = getJalaliMonthRange(parsed.jy, parsed.jm);
+      const prevYm = shiftJalaliMonth(parsed.jy, parsed.jm, -1);
+      const { startDate: pStart, endDate: pEnd } = getJalaliMonthRange(prevYm.jy, prevYm.jm);
+      const monthTitle = formatJalaliMonthLabel(parsed.jy, parsed.jm);
+      const isCurrent = toJalaliMonthKey(parsed.jy, parsed.jm) === currentMonthKey;
+
+      return {
+        startDate: mStart,
+        endDate: mEnd,
+        prevStartDate: pStart,
+        prevEndDate: pEnd,
+        periodLabel: `${monthTitle}${isCurrent ? ' (ماه جاری)' : ''}`,
+        periodBadge: `ماه شمسی: ${monthTitle}`,
+        selectedJalaliMonth: parsed,
+      };
+    }
+
+    // سالانه: ۱۲ ماه اخیر شمسی
+    const oldest = shiftJalaliMonth(currentJalali.jy, currentJalali.jm, -11);
+    const { startDate: yStart } = getJalaliMonthRange(oldest.jy, oldest.jm);
+    const { endDate: yEnd } = getJalaliMonthRange(currentJalali.jy, currentJalali.jm);
+    const prevOldest = shiftJalaliMonth(currentJalali.jy, currentJalali.jm, -23);
+    const prevNewest = shiftJalaliMonth(currentJalali.jy, currentJalali.jm, -12);
+    const { startDate: pyStart } = getJalaliMonthRange(prevOldest.jy, prevOldest.jm);
+    const { endDate: pyEnd } = getJalaliMonthRange(prevNewest.jy, prevNewest.jm);
+
+    return {
+      startDate: yStart,
+      endDate: yEnd,
+      prevStartDate: pyStart,
+      prevEndDate: pyEnd,
+      periodLabel: 'گزارش سالانه (۱۲ ماه اخیر شمسی)',
+      periodBadge: 'دوره‌ای: ۱۲ ماه شمسی',
+      selectedJalaliMonth: null as { jy: number; jm: number } | null,
+    };
+  }, [period, selectedMonthKey, currentJalali, currentMonthKey]);
+
+  // تمام فروش‌های بازه انتخاب‌شده (بدون فیلتر فروشنده؛ جهت محاسبه سهم واقعی تیم در دوره)
+  const periodSales = useMemo(() => {
     return sales.filter(s => {
       const sDate = new Date(s.date);
-      const inDateRange = sDate >= startDate && sDate <= now;
-      if (!inDateRange) return false;
-      if (selectedSellerId === 'ALL') return true;
-      const selectedUser = users.find(u => u.id === selectedSellerId);
-      return (s.sellerId && s.sellerId === selectedSellerId) ||
-             (s.sellerName && selectedUser && (
-               s.sellerName.trim() === selectedUser.fullName.trim() ||
-               s.sellerName.includes(selectedUser.fullName.trim()) ||
-               selectedUser.fullName.includes(s.sellerName.trim())
-             ));
+      return !Number.isNaN(sDate.getTime()) && sDate >= startDate && sDate <= endDate;
     });
-  }, [sales, startDate, now, selectedSellerId, users]);
+  }, [sales, startDate, endDate]);
+
+  // فروش‌های بازه انتخاب‌شده بر اساس فروشنده انتخابی
+  const currentSales = useMemo(() => {
+    if (selectedSellerId === 'ALL') return periodSales;
+    return periodSales.filter(s => matchesSeller(s, selectedSellerId, users));
+  }, [periodSales, selectedSellerId, users]);
 
   // فروش‌های دوره قبل برای مقایسه درصد رشد
   const previousSales = useMemo(() => {
     return sales.filter(s => {
       const sDate = new Date(s.date);
-      const inDateRange = sDate >= prevStartDate && sDate < prevEndDate;
+      const inDateRange = !Number.isNaN(sDate.getTime()) && sDate >= prevStartDate && sDate <= prevEndDate;
       if (!inDateRange) return false;
-      if (selectedSellerId === 'ALL') return true;
-      const selectedUser = users.find(u => u.id === selectedSellerId);
-      return (s.sellerId && s.sellerId === selectedSellerId) ||
-             (s.sellerName && selectedUser && (
-               s.sellerName.trim() === selectedUser.fullName.trim() ||
-               s.sellerName.includes(selectedUser.fullName.trim()) ||
-               selectedUser.fullName.includes(s.sellerName.trim())
-             ));
+      return matchesSeller(s, selectedSellerId, users);
     });
   }, [sales, prevStartDate, prevEndDate, selectedSellerId, users]);
 
@@ -130,19 +285,20 @@ const ReportsManager: React.FC<Props> = ({ products, sales, expenses, users }) =
   const currentExpenses = useMemo(() => {
     return expenses.filter(e => {
       const eDate = new Date(e.date);
-      return eDate >= startDate && eDate <= now;
+      return !Number.isNaN(eDate.getTime()) && eDate >= startDate && eDate <= endDate;
     });
-  }, [expenses, startDate, now]);
+  }, [expenses, startDate, endDate]);
 
   // هزینه‌های دوره قبلی
   const previousExpenses = useMemo(() => {
     return expenses.filter(e => {
       const eDate = new Date(e.date);
-      return eDate >= prevStartDate && eDate < prevEndDate;
+      return !Number.isNaN(eDate.getTime()) && eDate >= prevStartDate && eDate <= prevEndDate;
     });
   }, [expenses, prevStartDate, prevEndDate]);
 
   // شاخص‌های کلیدی عملکرد (KPIs)
+  const periodRevenue = useMemo(() => periodSales.reduce((acc, s) => acc + s.totalAmount, 0), [periodSales]);
   const currentRevenue = useMemo(() => currentSales.reduce((acc, s) => acc + s.totalAmount, 0), [currentSales]);
   const prevRevenue = useMemo(() => previousSales.reduce((acc, s) => acc + s.totalAmount, 0), [previousSales]);
 
@@ -155,8 +311,8 @@ const ReportsManager: React.FC<Props> = ({ products, sales, expenses, users }) =
   // پورسانت محاسبه شده در این دوره
   const currentCommissionsTotal = useMemo(() => {
     return currentSales.reduce((sum, s) => {
-      const seller = users.find(u => 
-        u.id === s.sellerId || 
+      const seller = users.find(u =>
+        u.id === s.sellerId ||
         (s.sellerName && (
           u.fullName.trim() === s.sellerName.trim() ||
           u.fullName.includes(s.sellerName.trim()) ||
@@ -182,22 +338,27 @@ const ReportsManager: React.FC<Props> = ({ products, sales, expenses, users }) =
   const revenueGrowth = prevRevenue > 0 ? Math.round(((currentRevenue - prevRevenue) / prevRevenue) * 100) : 0;
   const profitGrowth = prevNetProfit !== 0 ? Math.round(((currentNetProfit - prevNetProfit) / Math.abs(prevNetProfit)) * 100) : 0;
 
-  // آماده‌سازی اطلاعات نمودار بر اساس روز/هفته/ماه
+  // آماده‌سازی اطلاعات نمودار بر اساس روز/هفته‌های ماه شمسی/ماه‌های شمسی
   const chartData = useMemo(() => {
     if (period === 'WEEKLY') {
-      // تقسیم به ۷ روز
       const daysMap: Record<string, { label: string; date: string; sales: number; profit: number; expenses: number }> = {};
-      
+      const today = new Date();
+
       for (let i = 6; i >= 0; i--) {
-        const d = new Date();
-        d.setDate(d.getDate() - i);
-        const dateKey = d.toISOString().split('T')[0];
-        const dayLabel = new Intl.DateTimeFormat('fa-IR', { weekday: 'narrow', month: 'numeric', day: 'numeric' }).format(d);
+        const d = new Date(today.getFullYear(), today.getMonth(), today.getDate() - i);
+        const dateKey = getLocalDateKey(d);
+        const dayLabel = new Intl.DateTimeFormat('fa-IR', {
+          weekday: 'narrow',
+          month: 'numeric',
+          day: 'numeric',
+        }).format(d);
         daysMap[dateKey] = { label: dayLabel, date: dateKey, sales: 0, profit: 0, expenses: 0 };
       }
 
       currentSales.forEach(s => {
-        const dKey = s.date.split('T')[0];
+        const d = new Date(s.date);
+        if (Number.isNaN(d.getTime())) return;
+        const dKey = getLocalDateKey(d);
         if (daysMap[dKey]) {
           daysMap[dKey].sales += s.totalAmount;
           daysMap[dKey].profit += s.profit;
@@ -205,24 +366,69 @@ const ReportsManager: React.FC<Props> = ({ products, sales, expenses, users }) =
       });
 
       currentExpenses.forEach(e => {
-        const dKey = e.date.split('T')[0];
+        const d = new Date(e.date);
+        if (Number.isNaN(d.getTime())) return;
+        const dKey = getLocalDateKey(d);
         if (daysMap[dKey]) {
           daysMap[dKey].expenses += e.amount;
         }
       });
 
       return Object.values(daysMap);
-    } else if (period === 'MONTHLY') {
-      // تقسیم به ۴ بازه هفته‌ای
+    }
+
+    if (period === 'MONTHLY') {
+      if (selectedJalaliMonth) {
+        const monthLen = getJalaliMonthLength(selectedJalaliMonth.jy, selectedJalaliMonth.jm);
+        const intervals = [
+          { label: 'هفته ۱ (۱ تا ۷)', minDay: 1, maxDay: 7, sales: 0, profit: 0, expenses: 0 },
+          { label: 'هفته ۲ (۸ تا ۱۴)', minDay: 8, maxDay: 14, sales: 0, profit: 0, expenses: 0 },
+          { label: 'هفته ۳ (۱۵ تا ۲۱)', minDay: 15, maxDay: 21, sales: 0, profit: 0, expenses: 0 },
+          {
+            label: `هفته ۴ (۲۲ تا ${toPersianDigits(monthLen)})`,
+            minDay: 22,
+            maxDay: 31,
+            sales: 0,
+            profit: 0,
+            expenses: 0,
+          },
+        ];
+
+        currentSales.forEach(s => {
+          const d = new Date(s.date);
+          if (Number.isNaN(d.getTime())) return;
+          const { jd } = getJalaliFromDate(d);
+          const idx = intervals.findIndex(inv => jd >= inv.minDay && jd <= inv.maxDay);
+          if (idx !== -1) {
+            intervals[idx].sales += s.totalAmount;
+            intervals[idx].profit += s.profit;
+          }
+        });
+
+        currentExpenses.forEach(e => {
+          const d = new Date(e.date);
+          if (Number.isNaN(d.getTime())) return;
+          const { jd } = getJalaliFromDate(d);
+          const idx = intervals.findIndex(inv => jd >= inv.minDay && jd <= inv.maxDay);
+          if (idx !== -1) {
+            intervals[idx].expenses += e.amount;
+          }
+        });
+
+        return intervals;
+      }
+
+      // حالت ۳۰ روز چرخشی
+      const todayEnd = endDate.getTime();
       const intervals = [
-        { label: 'هفته ۱ (روز ۱-۷)', start: 0, end: 7, sales: 0, profit: 0, expenses: 0 },
-        { label: 'هفته ۲ (روز ۸-۱۴)', start: 7, end: 14, sales: 0, profit: 0, expenses: 0 },
-        { label: 'هفته ۳ (روز ۱۵-۲۱)', start: 14, end: 21, sales: 0, profit: 0, expenses: 0 },
-        { label: 'هفته ۴ (روز ۲۲-۳۰)', start: 21, end: 31, sales: 0, profit: 0, expenses: 0 },
+        { label: 'هفته ۴ (۷ روز اخیر)', start: 0, end: 7, sales: 0, profit: 0, expenses: 0 },
+        { label: 'هفته ۳ (۸-۱۴ روز قبل)', start: 7, end: 14, sales: 0, profit: 0, expenses: 0 },
+        { label: 'هفته ۲ (۱۵-۲۱ روز قبل)', start: 14, end: 21, sales: 0, profit: 0, expenses: 0 },
+        { label: 'هفته ۱ (۲۲-۳۰ روز قبل)', start: 21, end: 31, sales: 0, profit: 0, expenses: 0 },
       ];
 
       currentSales.forEach(s => {
-        const diffDays = Math.floor((now.getTime() - new Date(s.date).getTime()) / (1000 * 3600 * 24));
+        const diffDays = Math.floor((todayEnd - new Date(s.date).getTime()) / (1000 * 3600 * 24));
         const idx = intervals.findIndex(inv => diffDays >= inv.start && diffDays < inv.end);
         if (idx !== -1) {
           intervals[idx].sales += s.totalAmount;
@@ -231,46 +437,48 @@ const ReportsManager: React.FC<Props> = ({ products, sales, expenses, users }) =
       });
 
       currentExpenses.forEach(e => {
-        const diffDays = Math.floor((now.getTime() - new Date(e.date).getTime()) / (1000 * 3600 * 24));
+        const diffDays = Math.floor((todayEnd - new Date(e.date).getTime()) / (1000 * 3600 * 24));
         const idx = intervals.findIndex(inv => diffDays >= inv.start && diffDays < inv.end);
         if (idx !== -1) {
           intervals[idx].expenses += e.amount;
         }
       });
 
-      return intervals.reverse(); // از قدیمی‌ترین هفته به جدیدترین
-    } else {
-      // سالانه: ۱۲ ماه اخیر
-      const monthsMap: Record<string, { label: string; sales: number; profit: number; expenses: number }> = {};
-      
-      for (let i = 11; i >= 0; i--) {
-        const d = new Date();
-        d.setMonth(d.getMonth() - i);
-        const monthKey = `${d.getFullYear()}-${d.getMonth() + 1}`;
-        const monthLabel = new Intl.DateTimeFormat('fa-IR', { month: 'short' }).format(d);
-        monthsMap[monthKey] = { label: monthLabel, sales: 0, profit: 0, expenses: 0 };
-      }
-
-      currentSales.forEach(s => {
-        const d = new Date(s.date);
-        const mKey = `${d.getFullYear()}-${d.getMonth() + 1}`;
-        if (monthsMap[mKey]) {
-          monthsMap[mKey].sales += s.totalAmount;
-          monthsMap[mKey].profit += s.profit;
-        }
-      });
-
-      currentExpenses.forEach(e => {
-        const d = new Date(e.date);
-        const mKey = `${d.getFullYear()}-${d.getMonth() + 1}`;
-        if (monthsMap[mKey]) {
-          monthsMap[mKey].expenses += e.amount;
-        }
-      });
-
-      return Object.values(monthsMap);
+      return intervals.reverse();
     }
-  }, [period, currentSales, currentExpenses, now]);
+
+    // سالانه: ۱۲ ماه اخیر شمسی
+    const monthsMap: Record<string, { label: string; sales: number; profit: number; expenses: number }> = {};
+    for (let i = 11; i >= 0; i--) {
+      const m = shiftJalaliMonth(currentJalali.jy, currentJalali.jm, -i);
+      const monthKey = toJalaliMonthKey(m.jy, m.jm);
+      const monthLabel = `${PERSIAN_MONTHS[m.jm - 1]} ${toPersianDigits(m.jy % 100)}`;
+      monthsMap[monthKey] = { label: monthLabel, sales: 0, profit: 0, expenses: 0 };
+    }
+
+    currentSales.forEach(s => {
+      const d = new Date(s.date);
+      if (Number.isNaN(d.getTime())) return;
+      const j = getJalaliFromDate(d);
+      const mKey = toJalaliMonthKey(j.jy, j.jm);
+      if (monthsMap[mKey]) {
+        monthsMap[mKey].sales += s.totalAmount;
+        monthsMap[mKey].profit += s.profit;
+      }
+    });
+
+    currentExpenses.forEach(e => {
+      const d = new Date(e.date);
+      if (Number.isNaN(d.getTime())) return;
+      const j = getJalaliFromDate(d);
+      const mKey = toJalaliMonthKey(j.jy, j.jm);
+      if (monthsMap[mKey]) {
+        monthsMap[mKey].expenses += e.amount;
+      }
+    });
+
+    return Object.values(monthsMap);
+  }, [period, selectedJalaliMonth, currentJalali, currentSales, currentExpenses, endDate]);
 
   // پرفروش‌ترین کالاها در این بازه
   const topProducts = useMemo(() => {
@@ -296,36 +504,31 @@ const ReportsManager: React.FC<Props> = ({ products, sales, expenses, users }) =
       .slice(0, 5);
   }, [currentSales]);
 
-  // عملکرد و سهم فروشندگان در این بازه
+  // عملکرد و سهم فروشندگان در این بازه (بر اساس کل فروش‌های دوره انتخاب‌شده)
   const sellersPerformance = useMemo(() => {
-    return users.map(u => {
-      const uSales = currentSales.filter(s => 
-        s.sellerId === u.id || 
-        (s.sellerName && (
-          s.sellerName.trim() === u.fullName.trim() ||
-          s.sellerName.includes(u.fullName.trim()) ||
-          u.fullName.includes(s.sellerName.trim())
-        ))
-      );
+    return users
+      .map(u => {
+        const uSales = periodSales.filter(s => matchesSeller(s, u.id, users));
 
-      const revenue = uSales.reduce((acc, s) => acc + s.totalAmount, 0);
-      const profit = uSales.reduce((acc, s) => acc + s.profit, 0);
-      const count = uSales.length;
-      const rate = typeof u.commissionRate === 'number' ? u.commissionRate : 5;
-      const commission = Math.round(revenue * (rate / 100));
-      const share = currentRevenue > 0 ? (revenue / currentRevenue) * 100 : 0;
+        const revenue = uSales.reduce((acc, s) => acc + s.totalAmount, 0);
+        const profit = uSales.reduce((acc, s) => acc + s.profit, 0);
+        const count = uSales.length;
+        const rate = typeof u.commissionRate === 'number' ? u.commissionRate : 5;
+        const commission = Math.round(revenue * (rate / 100));
+        const share = periodRevenue > 0 ? (revenue / periodRevenue) * 100 : 0;
 
-      return {
-        user: u,
-        revenue,
-        profit,
-        count,
-        rate,
-        commission,
-        share
-      };
-    }).sort((a, b) => b.revenue - a.revenue);
-  }, [users, currentSales, currentRevenue]);
+        return {
+          user: u,
+          revenue,
+          profit,
+          count,
+          rate,
+          commission,
+          share,
+        };
+      })
+      .sort((a, b) => b.revenue - a.revenue);
+  }, [users, periodSales, periodRevenue]);
 
   // خروجی اکسل/CSV
   const handleExportCSV = () => {
@@ -345,7 +548,8 @@ const ReportsManager: React.FC<Props> = ({ products, sales, expenses, users }) =
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.setAttribute('download', `financial-report-${period.toLowerCase()}-${Date.now()}.csv`);
+    const monthSuffix = period === 'MONTHLY' ? `-${selectedMonthKey}` : '';
+    link.setAttribute('download', `financial-report-${period.toLowerCase()}${monthSuffix}-${Date.now()}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -396,7 +600,7 @@ const ReportsManager: React.FC<Props> = ({ products, sales, expenses, users }) =
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              ماهانه (۳۰ روز)
+              ماهانه (تقویمی)
             </button>
             <button
               onClick={() => setPeriod('YEARLY')}
@@ -409,6 +613,45 @@ const ReportsManager: React.FC<Props> = ({ products, sales, expenses, users }) =
               سالانه (۱۲ ماه)
             </button>
           </div>
+
+          {/* انتخابگر ماه شمسی دقیق در حالت ماهانه */}
+          {period === 'MONTHLY' && (
+            <div className="flex items-center gap-1 bg-indigo-50/70 border border-indigo-100 p-1 rounded-2xl">
+              <button
+                type="button"
+                onClick={handlePrevMonth}
+                disabled={!canGoPrevMonth}
+                title="ماه قبل"
+                className="p-2 rounded-xl text-indigo-700 hover:bg-white disabled:opacity-35 disabled:hover:bg-transparent transition-all"
+              >
+                <ChevronRight size={16} />
+              </button>
+              <div className="relative flex items-center">
+                <Calendar size={14} className="text-indigo-600 mr-2 pointer-events-none shrink-0" />
+                <select
+                  value={selectedMonthKey}
+                  onChange={e => setSelectedMonthKey(e.target.value)}
+                  className="bg-transparent text-indigo-900 text-xs font-black py-1.5 pl-2 pr-1 outline-none cursor-pointer"
+                  aria-label="انتخاب ماه شمسی"
+                >
+                  {availableMonthOptions.map(opt => (
+                    <option key={opt.key} value={opt.key}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <button
+                type="button"
+                onClick={handleNextMonth}
+                disabled={!canGoNextMonth}
+                title="ماه بعد"
+                className="p-2 rounded-xl text-indigo-700 hover:bg-white disabled:opacity-35 disabled:hover:bg-transparent transition-all"
+              >
+                <ChevronLeft size={16} />
+              </button>
+            </div>
+          )}
 
           {/* فیلتر فروشنده */}
           <div className="relative">
@@ -506,7 +749,7 @@ const ReportsManager: React.FC<Props> = ({ products, sales, expenses, users }) =
           <span className="text-slate-400 text-xs font-bold block mb-1">مجموع هزینه‌های جاری</span>
           <p className="text-2xl font-black text-rose-600">{formatPrice(currentExpenseTotal)}</p>
           <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500 font-bold">
-            <span>پورسانت تعهد شده:</span>
+            <span>{selectedSellerId === 'ALL' ? 'پورسانت تعهد شده:' : 'پورسانت این فروشنده:'}</span>
             <span className="text-slate-700 font-black">{formatPrice(currentCommissionsTotal)}</span>
           </div>
         </div>
@@ -558,7 +801,7 @@ const ReportsManager: React.FC<Props> = ({ products, sales, expenses, users }) =
             </span>
           </div>
           <div className="px-3.5 py-1.5 rounded-xl bg-white/10 text-xs font-bold text-indigo-200">
-            {period === 'WEEKLY' ? 'دوره‌ای: ۷ روز' : period === 'MONTHLY' ? 'دوره‌ای: ۳۰ روز' : 'دوره‌ای: ۱۲ ماه'}
+            {periodBadge}
           </div>
         </div>
       </div>
@@ -757,32 +1000,55 @@ const ReportsManager: React.FC<Props> = ({ products, sales, expenses, users }) =
             </div>
           ) : (
             <div className="space-y-3">
-              {sellersPerformance.map(({ user, revenue, count, rate, commission, share }) => (
-                <div key={user.id} className="p-4 bg-slate-50 rounded-2xl border border-slate-100 hover:border-emerald-200 transition-all">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-8 h-8 rounded-xl bg-indigo-100 text-indigo-700 font-black text-xs flex items-center justify-center">
-                        {user.fullName.charAt(0)}
+              {sellersPerformance.map(({ user, revenue, count, rate, commission, share }) => {
+                const isSelected = selectedSellerId === user.id;
+                return (
+                  <div
+                    key={user.id}
+                    onClick={() => setSelectedSellerId(prev => (prev === user.id ? 'ALL' : user.id))}
+                    title={isSelected ? 'کلیک برای نمایش کل فروشگاه' : 'کلیک برای فیلتر گزارش این فروشنده'}
+                    className={`p-4 rounded-2xl border transition-all cursor-pointer ${
+                      isSelected
+                        ? 'bg-indigo-50/70 border-indigo-300 ring-2 ring-indigo-500/15'
+                        : 'bg-slate-50 border-slate-100 hover:border-emerald-200'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2.5">
+                        <div className={`w-8 h-8 rounded-xl font-black text-xs flex items-center justify-center ${
+                          isSelected ? 'bg-indigo-600 text-white' : 'bg-indigo-100 text-indigo-700'
+                        }`}>
+                          {user.fullName.charAt(0)}
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-black text-sm text-slate-800 block">{user.fullName}</span>
+                            {isSelected && (
+                              <span className="text-[10px] font-black bg-indigo-600 text-white px-2 py-0.5 rounded-lg">
+                                فیلتر فعال
+                              </span>
+                            )}
+                          </div>
+                          <span className="text-[10px] text-slate-400 font-bold">{count} فاکتور در {periodLabel}</span>
+                        </div>
                       </div>
-                      <div>
-                        <span className="font-black text-sm text-slate-800 block">{user.fullName}</span>
-                        <span className="text-[10px] text-slate-400 font-bold">{count} فاکتور در این دوره</span>
+                      <div className="text-left">
+                        <span className="font-black text-xs text-slate-900 block">{formatPrice(revenue)}</span>
+                        <span className="text-[10px] font-bold text-indigo-600">
+                          {period === 'MONTHLY' && selectedJalaliMonth ? 'سهم از کل ماه' : 'سهم از کل دوره'}: {share.toFixed(1)}٪
+                        </span>
                       </div>
                     </div>
-                    <div className="text-left">
-                      <span className="font-black text-xs text-slate-900 block">{formatPrice(revenue)}</span>
-                      <span className="text-[10px] font-bold text-indigo-600">سهم: {share.toFixed(1)}٪</span>
-                    </div>
-                  </div>
 
-                  <div className="flex items-center justify-between text-xs pt-1 border-t border-slate-100/80 mt-2">
-                    <span className="text-slate-500 font-bold text-[11px]">
-                      پورسانت متعلقه دوره ({rate}٪):
-                    </span>
-                    <span className="text-emerald-600 font-black text-xs">{formatPrice(commission)}</span>
+                    <div className="flex items-center justify-between text-xs pt-1 border-t border-slate-100/80 mt-2">
+                      <span className="text-slate-500 font-bold text-[11px]">
+                        پورسانت متعلقه دوره ({rate}٪):
+                      </span>
+                      <span className="text-emerald-600 font-black text-xs">{formatPrice(commission)}</span>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
