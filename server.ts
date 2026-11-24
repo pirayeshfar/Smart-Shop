@@ -1,13 +1,28 @@
 import express from 'express';
 import type { Request, Response, NextFunction } from 'express';
 import path from 'node:path';
-import { GoogleGenAI } from '@google/genai';
+import { GoogleGenAI, ThinkingLevel } from '@google/genai';
 
-const PORT = Number(process.env.PORT) || 3000;
+const getPortFromArgs = (): number | null => {
+  const args = process.argv.slice(2);
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    if (arg.startsWith('--port=')) {
+      const val = Number(arg.slice('--port='.length));
+      if (Number.isFinite(val) && val > 0) return val;
+    } else if ((arg === '--port' || arg === '-p') && args[i + 1]) {
+      const val = Number(args[i + 1]);
+      if (Number.isFinite(val) && val > 0) return val;
+    }
+  }
+  return null;
+};
+
+const PORT = getPortFromArgs() || Number(process.env.PORT) || 3000;
 const isProduction = process.env.NODE_ENV === 'production';
 
 const getAiClient = () => {
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey = process.env.GEMINI_API_KEY || process.env.API_KEY;
   if (!apiKey) {
     return null;
   }
@@ -78,6 +93,11 @@ async function startServer() {
         const response = await ai.models.generateContent({
           model: 'gemini-4-hydrogen',
           contents: `Analyze this shop data and provide 3 actionable business insights in Persian. Data: ${dataSummary}`,
+          config: {
+            thinkingConfig: {
+              thinkingLevel: ThinkingLevel.LOW,
+            },
+          },
         });
 
         res.json({ insight: response.text || 'تحلیلی دریافت نشد.' });

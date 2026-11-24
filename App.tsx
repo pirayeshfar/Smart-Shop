@@ -25,6 +25,54 @@ import AIInsights from './components/AIInsights';
 import UserManager from './components/UserManager';
 import Login from './components/Login';
 
+interface ViewErrorBoundaryProps {
+  children: React.ReactNode;
+  resetKey: string;
+}
+
+interface ViewErrorBoundaryState {
+  hasError: boolean;
+  errorMessage: string;
+}
+
+class ViewErrorBoundary extends React.Component<ViewErrorBoundaryProps, ViewErrorBoundaryState> {
+  constructor(props: ViewErrorBoundaryProps) {
+    super(props);
+    this.state = { hasError: false, errorMessage: '' };
+  }
+
+  static getDerivedStateFromError(error: Error): ViewErrorBoundaryState {
+    return { hasError: true, errorMessage: error?.message || 'خطای غیرمنتظره در نمایش بخش' };
+  }
+
+  componentDidUpdate(prevProps: ViewErrorBoundaryProps) {
+    if (prevProps.resetKey !== this.props.resetKey && this.state.hasError) {
+      this.setState({ hasError: false, errorMessage: '' });
+    }
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="bg-white border border-rose-200 rounded-3xl p-8 text-center space-y-4 shadow-sm max-w-xl mx-auto my-8">
+          <h3 className="text-lg font-black text-rose-600">خطا در نمایش این بخش</h3>
+          <p className="text-xs font-bold text-slate-600 leading-relaxed">
+            {this.state.errorMessage}
+          </p>
+          <button
+            type="button"
+            onClick={() => this.setState({ hasError: false, errorMessage: '' })}
+            className="px-6 py-2.5 bg-indigo-600 text-white rounded-xl text-xs font-black hover:bg-indigo-700 transition-all"
+          >
+            تلاش مجدد
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
     try {
@@ -254,7 +302,7 @@ const App: React.FC = () => {
                   <p className="font-bold">در حال دریافت اطلاعات...</p>
                 </div>
               ) : (
-                <>
+                <ViewErrorBoundary resetKey={currentView}>
                   {currentView === View.DASHBOARD && <Dashboard products={products} sales={sales} expenses={expenses} users={users} setUsers={setUsers} />}
                   {currentView === View.REPORTS && <ReportsManager products={products} sales={sales} expenses={expenses} users={users} />}
                   {currentView === View.PRODUCTS && <ProductManager products={products} setProducts={setProducts} />}
@@ -262,7 +310,7 @@ const App: React.FC = () => {
                   {currentView === View.EXPENSES && <ExpenseManager expenses={expenses} setExpenses={setExpenses} />}
                   {currentView === View.AI_INSIGHTS && <AIInsights products={products} sales={sales} expenses={expenses} />}
                   {currentView === View.USER_MANAGEMENT && <UserManager users={users} setUsers={setUsers} currentUser={currentUser} setCurrentUser={setCurrentUser} />}
-                </>
+                </ViewErrorBoundary>
               )}
             </div>
           </div>

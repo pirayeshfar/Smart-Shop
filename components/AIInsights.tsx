@@ -16,6 +16,9 @@ const AIInsights: React.FC<Props> = ({ products, sales, expenses }) => {
   const generateInsights = async () => {
     setLoading(true);
     try {
+      const totalRevenue = sales.reduce((a, s) => a + (Number(s.totalAmount) || 0), 0);
+      const totalExpenses = expenses.reduce((a, e) => a + (Number(e.amount) || 0), 0);
+
       const response = await fetch('/api/insights', {
         method: 'POST',
         headers: {
@@ -24,17 +27,24 @@ const AIInsights: React.FC<Props> = ({ products, sales, expenses }) => {
         body: JSON.stringify({
           totalProducts: products.length,
           salesCount: sales.length,
-          totalRevenue: sales.reduce((a, s) => a + s.totalAmount, 0),
-          totalExpenses: expenses.reduce((a, e) => a + e.amount, 0),
+          totalRevenue,
+          totalExpenses,
         }),
       });
 
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data?.error || 'خطا در ارتباط با هوش مصنوعی.');
+      const rawText = await response.text();
+      let data: { insight?: string; error?: string } | null = null;
+      try {
+        data = rawText ? JSON.parse(rawText) : null;
+      } catch {
+        data = null;
       }
 
-      setInsight(data.insight || 'تحلیلی دریافت نشد.');
+      if (!response.ok) {
+        throw new Error(data?.error || 'خطا در ارتباط با هوش مصنوعی. لطفاً دوباره تلاش کنید.');
+      }
+
+      setInsight(data?.insight || 'تحلیلی دریافت نشد.');
     } catch (error) {
       console.error('Gemini API Error:', error);
       setInsight(
